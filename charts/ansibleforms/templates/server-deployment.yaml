@@ -1,0 +1,344 @@
+
+{{- $containers := (.Values.containers | default dict) }}
+{{- $app := (.Values.applications | default dict) }}
+{{- $server := ($containers.server | default dict) }}
+{{- $liveness := ($server.liveness | default dict) }}
+{{- $readiness := ($server.readiness | default dict) }}
+{{- $resources := ($server.resources | default dict) }}
+{{- $startup := ($server.startup | default dict) }}
+{{- /*
+  strategy accepts either a plain string ("Recreate") or the Kubernetes shape
+  ({type: Recreate}). Without this the map form used to render as
+  "type: map[type:Recreate]".
+*/}}
+{{- $strategyType := "RollingUpdate" }}
+{{- if kindIs "string" $server.strategy }}
+  {{- $strategyType = $server.strategy }}
+{{- else if kindIs "map" $server.strategy }}
+  {{- $strategyType = (dig "type" "RollingUpdate" $server.strategy) }}
+{{- end }}
+{{- $limits := ($resources.limits | default dict) }}
+{{- $requests := ($resources.requests | default dict) }}
+{{- $appServer := ($app.server | default dict) }}
+{{- $appEnv := ($appServer.env | default dict) }}
+{{- $appMysql := ($app.mysql | default dict) }}
+{{- $cmd := ($server.customCommand | default dict) }}
+{{- /*
+  Credentials come either from the Secret the chart generates or from one that
+  already exists, managed by External Secrets, Sealed Secrets or anything else.
+  Both cases expose the same five keys, so only the name changes here.
+*/}}
+{{- $secretName := include "ansibleforms.secretName" . }}
+{{- /*
+  The listening port and its scheme come from a helper so the container, the
+  Service and the three probes cannot drift apart.
+*/}}
+{{- $port := include "ansibleforms.server.port" . }}
+{{- $scheme := include "ansibleforms.server.scheme" . }}
+{{- $sensitive := dict "ENCRYPTION_SECRET" true "ADMIN_USERNAME" true "ADMIN_PASSWORD" true }}
+
+{{- include "ansibleforms.assertNoRootInitContainer" (dict "component" $server "key" "server") }}
+{{- include "ansibleforms.assertSecurityContextsAgree" (dict "component" $server "key" "server") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ansibleforms.server.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ansibleforms.server.labels" . | nindent 4 }}
+  {{- with (include "ansibleforms.annotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ $server.replicas | default 1 }}
+  {{- /* The selector is immutable on an existing Deployment, leave it alone */}}
+  selector:
+    matchLabels:
+      {{- include "ansibleforms.server.selectorLabels" . | nindent 6 }}
+
+  strategy:
+    type: {{ $strategyType }}
+
+  template:
+    metadata:
+      labels:
+        {{- include "ansibleforms.server.labels" . | nindent 8 }}
+        {{- with $server.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- /* podAnnotations wins over commonAnnotations on a clash */}}
+      {{- /* Most specific wins: podAnnotations, then commonAnnotations, then the
+             checksums the chart works out for itself. */}}
+      {{- $checksums := fromYaml (include "ansibleforms.ownedConfigChecksums" (dict "root" $ "withForms" true)) }}
+      {{- $podAnn := merge (dict) ($server.podAnnotations | default dict) (.Values.commonAnnotations | default dict) $checksums }}
+      {{- with $podAnn }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ $server.serviceAccountName | default "default" }}
+
+      {{- with (include "ansibleforms.podScheduling" (dict "component" $server "root" $)) }}
+      {{- . | nindent 6 }}
+      {{- end }}
+
+      {{- /*
+        The app listens on 80 or 443. Both are privileged ports, the container
+        runs as an unprivileged user, and a pod network namespace starts with
+        net.ipv4.ip_unprivileged_port_start at 1024 no matter what the node is
+        set to. Adding NET_BIND_SERVICE is not enough either: the process is
+        already non-root at exec, so the capability lands in the bounding set
+        and never reaches the effective one. Lowering the sysctl is what
+        actually works. It has been on the kubelet's safe list since 1.21 and
+        is allowed under the restricted pod security standard.
+        Set bindPrivilegedPorts to false if your kubelet refuses it, and expose
+        the app on a port above 1024 instead.
+
+        The rest of the pod security context comes from values, not from here,
+        so that overriding a field to false actually takes: Helm merges values
+        files properly, while the template's own merge treats false as absent
+        and would quietly put the default back. The sysctls are only added when
+        you have not written your own.
+      */}}
+      {{- $podSec := ($server.podSecurityContext | default dict) }}
+      {{- if and (or (not (hasKey $server "bindPrivilegedPorts")) $server.bindPrivilegedPorts) (not $podSec.sysctls) }}
+      {{- $podSec = merge (dict "sysctls" (list (dict "name" "net.ipv4.ip_unprivileged_port_start" "value" "0"))) $podSec }}
+      {{- end }}
+      {{- with $podSec }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+
+      {{- if $server.initContainers }}
+      initContainers:
+{{ toYaml $server.initContainers | nindent 8 }}
+      {{- end }}
+
+      containers:
+        - name: server
+          image: {{ $server.image | required "containers.server.image is required" }}
+          imagePullPolicy: {{ $server.imagePullPolicy | default "IfNotPresent" }}
+
+          {{- if $cmd.command }}
+          command:
+{{ toYaml $cmd.command | nindent 12 }}
+          {{- end }}
+
+          {{- if $cmd.args }}
+          args:
+{{ toYaml $cmd.args | nindent 12 }}
+          {{- end }}
+
+          ports:
+            {{- /* Named so the Service and the Ingress can point at it by name */}}
+            - name: http
+              containerPort: {{ $port }}
+              protocol: TCP
+
+          env:
+            - name: PORT
+              value: {{ $port | quote }}
+
+            {{- range $key, $value := $appEnv }}
+            {{- if not (index $sensitive $key) }}
+            - name: {{ $key }}
+              value: "{{ $value }}"
+            {{- end }}
+            {{- end }}
+
+            {{- /*
+              The bundled MySQL Service is named after the release now, so the
+              default cannot be the literal "mysql" any more.
+            */}}
+            - name: DB_HOST
+              value: {{ include "ansibleforms.mysql.host" . | quote }}
+
+            - name: DB_PORT
+              value: {{ $appMysql.port | default "3306" | quote }}
+
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: DB_USER
+
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: DB_PASSWORD
+
+            - name: ENCRYPTION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: ENCRYPTION_SECRET
+
+            - name: ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: ADMIN_USERNAME
+
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: ADMIN_PASSWORD
+
+            {{- /*
+              Anything applications.server.env cannot express: values read from
+              another Secret or ConfigMap, from the downward API, or a variable
+              whose name would collide with the ones above. Written last, so it
+              wins over the generated entries.
+            */}}
+            {{- with $server.extraEnv }}
+{{ toYaml . | nindent 12 }}
+            {{- end }}
+
+          {{- /* Whole ConfigMaps or Secrets injected as environment */}}
+          {{- with $server.extraEnvFrom }}
+          envFrom:
+{{ toYaml . | nindent 12 }}
+          {{- end }}
+
+          resources:
+            limits:
+              cpu: {{ $limits.cpu | default "500m" }}
+              memory: {{ $limits.memory | default "512Mi" }}
+            requests:
+              cpu: {{ $requests.cpu | default "250m" }}
+              memory: {{ $requests.memory | default "256Mi" }}
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: {{ $server.runAsUser | default 1000 }}
+            runAsGroup: {{ $server.runAsGroup | default 1000 }}
+            capabilities:
+              drop:
+                - ALL
+              {{- /*
+                The app listens on 80 or 443, both privileged, while the
+                container runs as an unprivileged user with every capability
+                dropped. Some clusters set net.ipv4.ip_unprivileged_port_start
+                to 0 and it works anyway; the ones that do not just get
+                "listen EACCES: permission denied 0.0.0.0:80" and a pod that
+                never comes up. NET_BIND_SERVICE is the narrow fix.
+              */}}
+              add:
+                - NET_BIND_SERVICE
+
+          stdin: {{ if hasKey $server "stdin" }}{{ $server.stdin }}{{ else }}false{{ end }}
+          tty: {{ if hasKey $server "tty" }}{{ $server.tty }}{{ else }}false{{ end }}
+
+          {{- /*
+            The startup probe holds the liveness probe back while the database
+            migrations run on first boot. Without it a slow start looks like a
+            hung process and the kubelet restarts the pod in a loop.
+          */}}
+          {{- if or (not (hasKey $startup "enabled")) $startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ $startup.path | default $readiness.path | default "/" }}
+              port: http
+              scheme: {{ $scheme }}
+            initialDelaySeconds: {{ $startup.initialDelaySeconds | default 10 }}
+            periodSeconds: {{ $startup.periodSeconds | default 10 }}
+            timeoutSeconds: {{ $startup.timeoutSeconds | default 5 }}
+            failureThreshold: {{ $startup.failureThreshold | default 30 }}
+          {{- end }}
+
+          livenessProbe:
+            httpGet:
+              path: {{ $liveness.path | default "/" }}
+              port: http
+              scheme: {{ $scheme }}
+            initialDelaySeconds: {{ $liveness.initialDelaySeconds | default 15 }}
+            periodSeconds: {{ $liveness.periodSeconds | default 15 }}
+            timeoutSeconds: {{ $liveness.timeoutSeconds | default 15 }}
+            failureThreshold: {{ $liveness.failureThreshold | default 3 }}
+
+          readinessProbe:
+            httpGet:
+              path: {{ $readiness.path | default "/" }}
+              port: http
+              scheme: {{ $scheme }}
+            initialDelaySeconds: {{ $readiness.initialDelaySeconds | default 15 }}
+            periodSeconds: {{ $readiness.periodSeconds | default 15 }}
+            timeoutSeconds: {{ $readiness.timeoutSeconds | default 15 }}
+            failureThreshold: {{ $readiness.failureThreshold | default 3 }}
+
+          volumeMounts:
+            - mountPath: /app/dist/persistent
+              name: server-persistent-storage
+            - mountPath: /home/node/.ssh
+              name: server-persistent-storage
+            {{- with .Values.forms }}
+              {{- with .configMap }}
+                {{- if .enabled }}
+            - name: forms-config
+              mountPath: {{ .mountPath }}
+              subPath: {{ .key }}
+                {{- end }}
+              {{- end }}
+
+              {{- with .extraFormsConfigMap }}
+                {{- if .enabled }}
+            - name: forms-extra-config
+              mountPath: {{ .mountPath }}
+                {{- end }}
+              {{- end }}
+
+              {{- with .customJs }}
+                {{- if .enabled }}
+            - name: forms-custom-js
+              mountPath: {{ .mountPath }}
+              subPath: {{ .key }}
+                {{- end }}
+              {{- end }}
+            {{- end }}
+
+            {{- if $server.extraVolumeMounts }}
+{{ toYaml $server.extraVolumeMounts | nindent 12 }}
+            {{- end }}
+
+      restartPolicy: Always
+
+      volumes:
+        - name: server-persistent-storage
+          persistentVolumeClaim:
+            claimName: {{ include "ansibleforms.server.pvcName" . }}
+
+        {{- with .Values.forms }}
+          {{- with .configMap }}
+            {{- if .enabled }}
+        - name: forms-config
+          configMap:
+            name: {{ .name }}
+            {{- end }}
+          {{- end }}
+
+          {{- with .extraFormsConfigMap }}
+            {{- if .enabled }}
+        - name: forms-extra-config
+          configMap:
+            name: {{ .name }}
+            {{- end }}
+          {{- end }}
+
+          {{- with .customJs }}
+            {{- if .enabled }}
+        - name: forms-custom-js
+          configMap:
+            name: {{ .name }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+
+        {{- if .Values.extraVolumes }}
+{{ toYaml .Values.extraVolumes | nindent 8 }}
+        {{- end }}

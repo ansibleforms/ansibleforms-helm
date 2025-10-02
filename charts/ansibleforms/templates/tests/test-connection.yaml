@@ -1,0 +1,125 @@
+{{- $tests := (.Values.tests | default dict) }}
+{{- if dig "enabled" true $tests }}
+{{- $scheme := lower (include "ansibleforms.server.scheme" .) }}
+{{- $host := printf "%s.%s.svc.cluster.local" (include "ansibleforms.server.fullname" .) .Release.Namespace }}
+{{- $url := printf "%s://%s:%s/" $scheme $host (include "ansibleforms.server.port" .) }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "ansibleforms.fullname" . }}-test-connection
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ansibleforms.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ include "ansibleforms.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: test
+  annotations:
+    helm.sh/hook: test
+    {{- /*
+      before-hook-creation only, deliberately. Adding hook-succeeded removes the
+      pod the moment it passes, and `helm test --logs` then fails with "pods
+      not found" on a run that actually worked. Left alone, the pod stays until
+      the next `helm test` replaces it, so its output can be read either way.
+    */}}
+    helm.sh/hook-delete-policy: before-hook-creation
+    {{- with (include "ansibleforms.annotations" .) }}
+    {{- . | nindent 4 }}
+    {{- end }}
+spec:
+  restartPolicy: Never
+  {{- with (include "ansibleforms.podScheduling" (dict "component" ($tests) "root" $)) }}
+  {{- . | nindent 2 }}
+  {{- end }}
+  {{- /*
+    The chart itself installs under the restricted Pod Security Standard, so its
+    own test has to as well. A test pod that the namespace refuses would make
+    helm test fail for a reason that has nothing to do with the release.
+  */}}
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: {{ dig "runAsUser" 100 $tests }}
+    runAsGroup: {{ dig "runAsGroup" 100 $tests }}
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: test
+      image: {{ dig "image" "curlimages/curl:8.10.1" $tests }}
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+      resources:
+        limits:
+          cpu: 100m
+          memory: 64Mi
+        requests:
+          cpu: 10m
+          memory: 16Mi
+      command:
+        - sh
+        - -c
+        - |
+          set -eu
+
+          echo "Asking {{ $url }} for the front page"
+          code="$(curl -sk -o /tmp/body -w '%{http_code}' --max-time 20 '{{ $url }}')"
+          echo "  HTTP $code"
+          [ "$code" = "200" ] || {
+            echo "The server answered $code, not 200."
+            head -20 /tmp/body
+            exit 1
+          }
+
+          {{- /*
+            Ready is not enough on its own. The front page is static, so the pod
+            answers 200 with a database it cannot reach behind it, which is the
+            failure mode people actually hit. Look at what came back.
+          */}}
+          grep -qi 'ansible *forms' /tmp/body || {
+            echo "Something answered 200, but it was not AnsibleForms."
+            head -20 /tmp/body
+            exit 1
+          }
+          echo "  the page is AnsibleForms"
+          {{- if dig "enabled" true (.Values.mysql | default dict) }}
+
+          {{- /*
+            MySQL sends a handshake packet the moment a connection is accepted,
+            so reading any bytes at all is proof the connection happened. That
+            is deliberately not an exit code: a first attempt at this read curl's
+            status instead, treating anything but "refused" and "unresolved" as
+            success, and it reported a healthy database while a NetworkPolicy
+            was silently dropping the traffic. A dropped connection times out
+            exactly like a closed port does, so the code could not tell them
+            apart. Bytes on the wire can.
+          */}}
+          {{- /*
+            A few attempts, not one. helm install --wait returns the moment the
+            MySQL pod turns Ready, and the Service only routes to it once its
+            endpoint has been published and kube-proxy has caught up, a moment
+            later. A single attempt landed in that gap now and then and failed
+            a release with nothing wrong with it. A database that is really
+            unreachable stays silent on every attempt, so this still fails, only
+            later: four attempts five seconds apart, about a minute at worst.
+          */}}
+          db='{{ include "ansibleforms.mysql.host" . }}:{{ dig "port" "3306" ((.Values.applications | default dict).mysql | default dict) }}'
+          echo "Connecting to $db"
+          handshake=""
+          for attempt in 1 2 3 4; do
+            handshake="$(curl -s --max-time 15 --connect-timeout 10 "telnet://${db}" \
+              </dev/null 2>/dev/null || true)"
+            [ -n "$handshake" ] && break
+            echo "  attempt $attempt: no answer yet"
+            [ "$attempt" = "4" ] || sleep 5
+          done
+          if [ -z "$handshake" ]; then
+            echo "  nothing answered on $db after 4 attempts: it is closed, unreachable, or something is dropping the traffic."
+            exit 1
+          fi
+          echo "  the database answered with ${#handshake} bytes of handshake"
+          {{- end }}
+
+          echo "OK"
+{{- end }}
