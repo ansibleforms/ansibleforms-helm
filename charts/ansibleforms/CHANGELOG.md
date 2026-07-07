@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.2.1
+
+AnsibleForms 6.2.1.
+
+### Changed
+
+- **The default image is AnsibleForms 6.2.1**, `ghcr.io/ansibleforms/ansibleforms:6.2.1`,
+  and `appVersion` follows. See the
+  [6.2.1 release notes](https://github.com/ansibleforms/ansibleforms/releases/tag/6.2.1).
+
 ## 6.2.0
 
 AnsibleForms 6.2.0.
