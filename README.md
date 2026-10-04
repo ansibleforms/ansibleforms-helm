@@ -18,7 +18,7 @@ This Helm chart deploys the AnsibleForms application and its MySQL database on K
 From the chart repository:
 
 ```bash
-helm repo add ansibleforms https://ansibleguy76.github.io/ansibleforms-helm/
+helm repo add ansibleforms https://ansibleforms.github.io/ansibleforms-helm/
 helm repo update
 helm show values ansibleforms/ansibleforms > my_values.yaml
 # edit my_values.yaml, then
@@ -30,14 +30,15 @@ helm upgrade --install ansibleforms ansibleforms/ansibleforms \
 Or straight from the OCI registry, no repository to add:
 
 ```bash
-helm show values oci://ghcr.io/ansibleguy76/charts/ansibleforms > my_values.yaml
-helm upgrade --install ansibleforms oci://ghcr.io/ansibleguy76/charts/ansibleforms \
+helm show values oci://ghcr.io/ansibleforms/charts/ansibleforms > my_values.yaml
+helm upgrade --install ansibleforms oci://ghcr.io/ansibleforms/charts/ansibleforms \
   --namespace ansibleforms --create-namespace \
   --values my_values.yaml
 ```
 
 Pin the chart version in anything that runs unattended, for example
-`--version 6.2.2`, so a new release never lands on its own.
+`--version 6.2.2`, so a new release never lands on its own. Charts up to and including 6.2.9
+are in the OCI registry at `oci://ghcr.io/ansibleguy76/charts/ansibleforms` instead.
 
 ## Usage
 
