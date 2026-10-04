@@ -761,7 +761,7 @@ jobs:
           set -euo pipefail
 
           NS=upgrade
-          helm repo add ansibleforms https://ansibleguy76.github.io/ansibleforms-helm/ >/dev/null
+          helm repo add ansibleforms https://ansibleforms.github.io/ansibleforms-helm/ >/dev/null
           helm repo update >/dev/null
 
           # The newest version on the chart repository, which is whatever main published
