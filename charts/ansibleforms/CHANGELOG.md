@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.3.3
+
+The chart moved to `charts/ansibleforms` in the repository, changelog included. The packaged
+chart is the same.
+
+### Changed
+
+- **Installing from a clone** now points at the chart directory:
+  `helm install ansibleforms ./helm-charts/charts/ansibleforms`. Installs from the chart
+  repository or the OCI registry are unchanged.
+
 ## 6.3.2
 
 `helm test` no longer fails a healthy release right after an install.

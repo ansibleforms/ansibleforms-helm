@@ -4,8 +4,7 @@
 extends: default
 
 ignore: |
-  templates/
-  charts/
+  charts/*/templates/
 
 rules:
   line-length: disable

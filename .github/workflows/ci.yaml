@@ -13,6 +13,15 @@ permissions:
 env:
   KUBECONFORM_VERSION: "0.6.7"
 
+# The chart lives in charts/ansibleforms. Every run step starts there, so ".", ci/,
+# Chart.yaml, values.yaml and files/ all mean the chart, exactly as they did when it sat
+# at the root. The fixtures the repository keeps beside it are under ../../test/. The two
+# steps that look at the whole repository (yamllint and ct) say so with their own
+# working-directory.
+defaults:
+  run:
+    working-directory: charts/ansibleforms
+
 jobs:
   lint:
     name: Lint and render
@@ -29,6 +38,7 @@ jobs:
           version: v3.16.2
 
       - name: yamllint
+        working-directory: .
         run: |
           pip install --quiet yamllint
           yamllint --strict .
@@ -52,7 +62,9 @@ jobs:
           fi
           echo "Chart files this pull request touches:"
           echo "$changed" | sed 's/^/  /'
-          before="$(git show "$BASE:Chart.yaml" | awk '/^version:/ {print $2}')"
+          # ./ makes the path relative to this directory. The fallback is the root,
+          # where Chart.yaml sat before the chart moved into charts/ansibleforms.
+          before="$( { git show "$BASE:./Chart.yaml" 2>/dev/null || git show "$BASE:Chart.yaml"; } | awk '/^version:/ {print $2}')"
           after="$(awk '/^version:/ {print $2}' Chart.yaml)"
           echo "base branch: $before"
           echo "this branch: $after"
@@ -95,7 +107,7 @@ jobs:
           import glob, subprocess, sys, yaml
 
           failures = []
-          for path in sorted(glob.glob("test/values/refused/*-values.yaml")):
+          for path in sorted(glob.glob("../../test/values/refused/*-values.yaml")):
               out = subprocess.run(["helm", "template", "refused", ".", "--values", path],
                                    capture_output=True, text=True)
               if out.returncode == 0:
@@ -156,7 +168,7 @@ jobs:
 
       - name: helm lint
         run: |
-          for f in ci/*-values.yaml test/values/*-values.yaml; do
+          for f in ci/*-values.yaml ../../test/values/*-values.yaml; do
             echo "::group::helm lint with $f"
             helm lint . --strict --values "$f"
             echo "::endgroup::"
@@ -174,7 +186,7 @@ jobs:
       - name: The Ingress backend must resolve to a port the Service publishes
         run: |
           set -euo pipefail
-          for f in ci/default-values.yaml test/values/https-values.yaml; do
+          for f in ci/default-values.yaml ../../test/values/https-values.yaml; do
             echo "::group::ingress backend with $f"
             helm template portcheck . --values "$f" > /tmp/portcheck.yaml
             python3 - <<'PY'
@@ -224,11 +236,11 @@ jobs:
       - name: Scheduling values must reach both pod specs
         run: |
           set -euo pipefail
-          helm template sched . --values test/values/scheduling-values.yaml > /tmp/sched.yaml
+          helm template sched . --values ../../test/values/scheduling-values.yaml > /tmp/sched.yaml
           python3 - <<'PY'
           import sys, yaml
 
-          values = yaml.safe_load(open("test/values/scheduling-values.yaml"))
+          values = yaml.safe_load(open("../../test/values/scheduling-values.yaml"))
           docs = [d for d in yaml.safe_load_all(open("/tmp/sched.yaml")) if d]
           pods = {d["metadata"]["name"]: d["spec"]["template"]
                   for d in docs if d["kind"] == "Deployment"}
@@ -314,7 +326,7 @@ jobs:
           import glob, re, subprocess, sys, yaml
 
           failures = []
-          for values in sorted(glob.glob("ci/*-values.yaml") + glob.glob("test/values/*-values.yaml")):
+          for values in sorted(glob.glob("ci/*-values.yaml") + glob.glob("../../test/values/*-values.yaml")):
               out = subprocess.run(
                   ["helm", "template", "probecheck", ".", "--values", values],
                   capture_output=True, text=True, check=True).stdout
@@ -425,7 +437,7 @@ jobs:
       - name: helm template and kubeconform
         run: |
           mkdir -p rendered
-          for f in ci/*-values.yaml test/values/*-values.yaml; do
+          for f in ci/*-values.yaml ../../test/values/*-values.yaml; do
             name="$(basename "$f" -values.yaml)"
             for kube in 1.29.14 1.31.14 1.33.12 1.35.8; do
               echo "::group::$name on Kubernetes $kube"
@@ -491,7 +503,8 @@ jobs:
       # ct installs the chart once per ci/*-values.yaml file and waits for every
       # pod to become ready, so a broken probe or a bad default fails here.
       - name: ct install
-        run: ct install --config ct.yaml --charts .
+        working-directory: .
+        run: ct install --config ct.yaml --charts charts/ansibleforms
 
       # ct can only install what a values file alone describes, and these two
       # need something in the cluster first, so they are driven by hand. They
@@ -508,7 +521,7 @@ jobs:
             --from-literal=ADMIN_PASSWORD=ci-not-a-real-password
           helm install existing-secret . \
             --namespace existing-secret \
-            --values test/values/existing-secret-values.yaml \
+            --values ../../test/values/existing-secret-values.yaml \
             --wait --timeout 12m
           # The chart must not have created one of its own alongside it.
           if kubectl -n existing-secret get secret existing-secret-secrets >/dev/null 2>&1; then
@@ -523,7 +536,7 @@ jobs:
           kubectl create namespace external-db
           kubectl -n external-db create secret generic mysql-root \
             --from-literal=password=ci-not-a-real-password
-          kubectl -n external-db apply -f test/manifests/external-mysql.yaml
+          kubectl -n external-db apply -f ../../test/manifests/external-mysql.yaml
           kubectl -n external-db rollout status deployment/external-mysql --timeout=8m
           # Belt and braces on top of the probe: wait until the server really
           # answers over TCP before touching it.
@@ -548,7 +561,7 @@ jobs:
             sh -c 'mysql -h 127.0.0.1 --protocol=TCP -uroot -p"$MYSQL_ROOT_PASSWORD"' < files/schema.sql
           helm install external-db . \
             --namespace external-db \
-            --values test/values/external-db-values.yaml \
+            --values ../../test/values/external-db-values.yaml \
             --set applications.mysql.host=external-mysql.external-db.svc.cluster.local \
             --set applications.mysql.user=root \
             --wait --timeout 12m
@@ -976,8 +989,8 @@ jobs:
           trap 'kill $PF 2>/dev/null || true' EXIT
           sleep 3
 
-          check ing-http  test/values/ingress-http-values.yaml  ansibleforms.ci.example.com
-          check ing-https test/values/ingress-https-values.yaml ansibleforms.ci.example.com
+          check ing-http  ../../test/values/ingress-http-values.yaml  ansibleforms.ci.example.com
+          check ing-https ../../test/values/ingress-https-values.yaml ansibleforms.ci.example.com
           echo "Both the plain and the TLS backend answer through a real ingress controller."
 
 
