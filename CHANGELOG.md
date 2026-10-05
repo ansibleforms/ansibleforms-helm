@@ -1,5 +1,30 @@
 # Changelog
 
+## 6.3.1
+
+The repository is now `ansibleforms/helm-charts`.
+
+### Changed
+
+- **The chart repository moved to `https://ansibleforms.github.io/helm-charts/`.** The
+  GitHub repository was renamed from `ansibleforms-helm` to `helm-charts`, and GitHub
+  Pages does not redirect, so the old address `https://ansibleforms.github.io/ansibleforms-helm/`
+  stops answering. A `helm repo add` made against it gets no new versions; re-add it:
+
+  ```bash
+  helm repo remove ansibleforms
+  helm repo add ansibleforms https://ansibleforms.github.io/helm-charts/
+  ```
+
+  The OCI registry, `oci://ghcr.io/ansibleforms/charts/ansibleforms`, is not affected.
+
+### Fixed
+
+- **The chart icon** pointed at a file that moved with the documentation site and showed
+  nothing. It now comes from the website repository.
+- **`sources`** name `ansibleforms/helm-charts` and `ansibleforms/ansibleforms` instead of
+  the old `ansibleguy76` repositories.
+
 ## 6.3.0
 
 The default image now comes from the GitHub Container Registry.

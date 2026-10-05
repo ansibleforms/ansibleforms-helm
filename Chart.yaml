@@ -7,14 +7,14 @@ type: application
 # AnsibleForms version the default image points at. They used to be kept in
 # lockstep, which stopped being true as soon as the chart needed a fix of its
 # own, so they are tracked separately from here on.
-version: 6.3.0
+version: 6.3.1
 appVersion: "6.5.2"
 
 home: https://ansibleforms.com
-icon: https://raw.githubusercontent.com/ansibleguy76/ansibleforms/main/docs/assets/images/logo.png
+icon: https://raw.githubusercontent.com/ansibleforms/website/main/source/assets/images/logo.png
 sources:
-  - https://github.com/ansibleguy76/ansibleforms-helm
-  - https://github.com/ansibleguy76/ansibleforms
+  - https://github.com/ansibleforms/helm-charts
+  - https://github.com/ansibleforms/ansibleforms
 
 keywords:
   - ansible
