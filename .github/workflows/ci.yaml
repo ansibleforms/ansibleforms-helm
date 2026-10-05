@@ -466,6 +466,7 @@ jobs:
             echo "kubernetes=${kube%@*}"
             echo "kubeconform=$(from kubeconform)"
             echo "calico=${calico##*:}"
+            echo "chart_testing=$(from chart-testing)"
           } >> "$GITHUB_OUTPUT"
           echo "kind node $node, kubeconform $(from kubeconform), calico ${calico##*:}"
 
@@ -530,11 +531,6 @@ jobs:
         with:
           version: v3.16.2
 
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-
-      - uses: helm/chart-testing-action@v2
 
       # The Kubernetes, kubeconform and Calico versions live in test/versions/Dockerfile,
       # where Dependabot can bump them. kind and kubectl come with helm/kind-action, pinned
@@ -554,6 +550,7 @@ jobs:
             echo "kubernetes=${kube%@*}"
             echo "kubeconform=$(from kubeconform)"
             echo "calico=${calico##*:}"
+            echo "chart_testing=$(from chart-testing)"
           } >> "$GITHUB_OUTPUT"
           echo "kind node $node, kubeconform $(from kubeconform), calico ${calico##*:}"
 
@@ -565,7 +562,15 @@ jobs:
       # pod to become ready, so a broken probe or a bad default fails here.
       - name: ct install
         working-directory: .
-        run: ct install --config ct.yaml --charts charts/ansibleforms
+        # ct runs from its own image rather than helm/chart-testing-action, whose uv setup
+        # warned on every run. The container reaches the kind cluster through the host
+        # network and the kubeconfig kind wrote.
+        env:
+          CHART_TESTING: ${{ steps.versions.outputs.chart_testing }}
+        run: |
+          docker run --rm --network host \
+            -v "$HOME/.kube:/root/.kube:ro" -v "$PWD:/workdir" -w /workdir "$CHART_TESTING" \
+            sh -c 'git config --global --add safe.directory /workdir && ct install --config ct.yaml --charts charts/ansibleforms'
 
       # ct can only install what a values file alone describes, and these two
       # need something in the cluster first, so they are driven by hand. They
@@ -846,6 +851,7 @@ jobs:
             echo "kubernetes=${kube%@*}"
             echo "kubeconform=$(from kubeconform)"
             echo "calico=${calico##*:}"
+            echo "chart_testing=$(from chart-testing)"
           } >> "$GITHUB_OUTPUT"
           echo "kind node $node, kubeconform $(from kubeconform), calico ${calico##*:}"
 
@@ -1037,6 +1043,7 @@ jobs:
             echo "kubernetes=${kube%@*}"
             echo "kubeconform=$(from kubeconform)"
             echo "calico=${calico##*:}"
+            echo "chart_testing=$(from chart-testing)"
           } >> "$GITHUB_OUTPUT"
           echo "kind node $node, kubeconform $(from kubeconform), calico ${calico##*:}"
 
@@ -1149,6 +1156,7 @@ jobs:
             echo "kubernetes=${kube%@*}"
             echo "kubeconform=$(from kubeconform)"
             echo "calico=${calico##*:}"
+            echo "chart_testing=$(from chart-testing)"
           } >> "$GITHUB_OUTPUT"
           echo "kind node $node, kubeconform $(from kubeconform), calico ${calico##*:}"
 
