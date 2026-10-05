@@ -18,7 +18,7 @@ This Helm chart deploys the AnsibleForms application and its MySQL database on K
 From the chart repository:
 
 ```bash
-helm repo add ansibleforms https://ansibleforms.github.io/ansibleforms-helm/
+helm repo add ansibleforms https://ansibleforms.github.io/helm-charts/
 helm repo update
 helm show values ansibleforms/ansibleforms > my_values.yaml
 # edit my_values.yaml, then
@@ -40,6 +40,15 @@ Pin the chart version in anything that runs unattended, for example
 `--version 6.2.2`, so a new release never lands on its own. Charts up to and including 6.2.9
 are in the OCI registry at `oci://ghcr.io/ansibleguy76/charts/ansibleforms` instead.
 
+The repository was called `ansibleforms-helm` up to chart 6.3.0, and the chart repository
+was served from `https://ansibleforms.github.io/ansibleforms-helm/`. That address no longer
+answers. If you added it under that address, point it at the new one:
+
+```bash
+helm repo remove ansibleforms
+helm repo add ansibleforms https://ansibleforms.github.io/helm-charts/
+```
+
 ## Usage
 
 ### 1. Clone the Helm chart and values.yaml
@@ -47,8 +56,8 @@ are in the OCI registry at `oci://ghcr.io/ansibleguy76/charts/ansibleforms` inst
 Only needed if you want to work on the chart itself rather than install it.
 
 ```bash
-git clone https://github.com/ansibleguy76/ansibleforms-helm
-cp ./ansibleforms-helm/values.yaml my_values.yaml
+git clone https://github.com/ansibleforms/helm-charts
+cp ./helm-charts/values.yaml my_values.yaml
 ```
 
 ### 2. Configure your values
@@ -379,7 +388,7 @@ With `forms.customJs.enabled: true` and the values shown above, this file will b
 Depending on your environment, choose an existing namespace or choose to create a new one.
 
 ```bash
-helm install ansibleforms ./ansibleforms-helm -f ./my_values.yaml -n ansibleforms --create-namespace
+helm install ansibleforms ./helm-charts -f ./my_values.yaml -n ansibleforms --create-namespace
 ```
 
 ### 6b. Letting the chart make up the credentials
