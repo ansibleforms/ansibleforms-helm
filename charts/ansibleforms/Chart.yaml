@@ -7,8 +7,8 @@ type: application
 # AnsibleForms version the default image points at. They used to be kept in
 # lockstep, which stopped being true as soon as the chart needed a fix of its
 # own, so they are tracked separately from here on.
-version: 7.0.3
-appVersion: "7.1.5"
+version: 7.0.4
+appVersion: "7.1.6"
 
 home: https://ansibleforms.com
 icon: https://raw.githubusercontent.com/ansibleforms/website/main/source/assets/images/logo.png
@@ -43,7 +43,7 @@ annotations:
       url: https://github.com/ansibleforms/helm-charts/blob/main/charts/ansibleforms/VALUES.md
   artifacthub.io/images: |
     - name: ansibleforms
-      image: ghcr.io/ansibleforms/ansibleforms:7.1.5
+      image: ghcr.io/ansibleforms/ansibleforms:7.1.6
     - name: mysql
       image: mysql:8.4
     - name: helm-test
