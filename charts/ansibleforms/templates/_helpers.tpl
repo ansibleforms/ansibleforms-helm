@@ -297,8 +297,8 @@ app.kubernetes.io/component: database
 
 {{- /*
   The same idea for the objects the chart does not own: a Secret supplied
-  through secrets.existingSecret, and the ConfigMaps holding forms.yaml, the
-  extra form definitions and custom.js.
+  through secrets.existingSecret, and the ConfigMaps holding config.yaml, the
+  form files and custom.js.
 
   Reading them means a lookup against the cluster, and lookup returns nothing
   during `helm template`. Anything that renders first and applies afterwards,

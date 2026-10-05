@@ -579,12 +579,9 @@ jobs:
             fi
             sleep 5
           done
-          # A database the chart does not manage never sees the init script, and
-          # AnsibleForms migrates an existing schema forward rather than creating
-          # one, so the schema goes in first. This is exactly what the README
-          # tells operators to do, so the test does it the same way.
-          kubectl -n external-db exec -i deployment/external-mysql -- \
-            sh -c 'mysql -h 127.0.0.1 --protocol=TCP -uroot -p"$MYSQL_ROOT_PASSWORD"' < files/schema.sql
+          # Nothing goes into the database first: AnsibleForms 7 creates its schema
+          # when it finds the database empty, which is what the README promises an
+          # operator with their own server.
           helm install external-db . \
             --namespace external-db \
             --values ../../test/values/external-db-values.yaml \
@@ -602,6 +599,11 @@ jobs:
           # Ready is not enough here: the home page is static, so the pod comes
           # up and answers even when every query underneath is failing. Look at
           # what the application actually said instead.
+          if ! kubectl -n external-db logs deployment/external-db-server -c server | grep -q "creating the schema"; then
+            echo "::error::AnsibleForms did not create its schema on the empty external database."
+            kubectl -n external-db logs deployment/external-db-server -c server --tail=60
+            exit 1
+          fi
           if kubectl -n external-db logs deployment/external-db-server -c server | grep -q "doesn't exist"; then
             echo "::error::The server is up but its tables are missing."
             kubectl -n external-db logs deployment/external-db-server -c server | grep "doesn't exist" | head -5
