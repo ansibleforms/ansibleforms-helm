@@ -11,3 +11,4 @@
 *.orig
 *~
 ci/
+VALUES.md.gotmpl

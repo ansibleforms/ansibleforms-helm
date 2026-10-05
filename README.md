@@ -21,8 +21,8 @@ helm show values ansibleforms/ansibleforms > my_values.yaml
 
 Or from the OCI registry: `oci://ghcr.io/ansibleforms/charts/ansibleforms`.
 
-The [chart's README](charts/ansibleforms/README.md) covers every value, storage, ingress,
-credentials and upgrades.
+The [chart's README](charts/ansibleforms/README.md) covers storage, ingress, credentials and
+upgrades, and [VALUES.md](charts/ansibleforms/VALUES.md) lists every value with its default.
 
 ## Contributing
 

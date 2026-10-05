@@ -13,6 +13,8 @@ This Helm chart deploys the AnsibleForms application and its MySQL database on K
 - Service type (ClusterIP, LoadBalancer, NodePort) is configurable, with support for static LoadBalancer IPs
 - (Optional) Support for managing `forms.yaml`, `forms/*.yaml` definitions, and `custom.js` via ConfigMaps
 
+Every value, its type, default and a one-line description: [VALUES.md](VALUES.md).
+
 ## Installing
 
 From the chart repository:
