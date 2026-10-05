@@ -509,7 +509,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: rendered-manifests
-          path: rendered/
+          # Actions resolve paths from the repository root, unlike the run steps, which
+          # start in charts/ansibleforms, where the manifests are rendered.
+          path: charts/ansibleforms/rendered/
           retention-days: 7
 
   # Rendering has always covered several Kubernetes versions; installing
