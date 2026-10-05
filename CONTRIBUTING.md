@@ -114,7 +114,8 @@ helm upgrade --install test charts/ansibleforms \
 Releases are driven by the `version` field in `charts/ansibleforms/Chart.yaml`. Bump it in a pull
 request, merge to `main`, and the release workflow tags the version, attaches
 the packaged chart to a GitHub release, pushes it to GHCR as an OCI artifact and
-rebuilds the Helm repository index published on GitHub Pages.
+asks ansibleforms.com to rebuild, which serves the Helm repository at
+`https://ansibleforms.com/helm-charts/`, indexed from these releases.
 
 It runs after CI, not alongside it, and does nothing unless CI finished green,
 so a failing build cannot publish. Merging with a version that already has a tag
@@ -139,15 +140,13 @@ packaged chart, to CI, to `test/` or to the documentation, need no bump; the cha
 
 ## Repository settings this depends on
 
-The release workflow needs no secrets, the automatic `GITHUB_TOKEN` covers both
-the GitHub release and the push to GHCR.
+The automatic `GITHUB_TOKEN` covers the GitHub release and the push to GHCR.
 
-One thing is owner-only: **Settings > Pages**, source set to *GitHub Actions*.
-Without it the Helm repository is not published; the release and the OCI
-artifact still are, and the workflow says so in its run summary rather than
-failing. Enabling Pages from the workflow itself does not work, creating the
-site needs repository administration rights that the automatic token does not
-have, whatever permissions the job requests.
+The website rebuild needs the `ansibleforms-release` GitHub App installed on this
+repository, the App's ID as the `RELEASE_APP_ID` repository variable and its private key as
+the `RELEASE_APP_PRIVATE_KEY` secret. Without them the release and the OCI artifact still go
+out, the rebuild job says so in its run summary, and ansibleforms.com picks the release up
+on its nightly build.
 
 The GHCR package needs nothing. Pushed from Actions it is linked to the
 repository and inherits its visibility, so on a public repository it can be
