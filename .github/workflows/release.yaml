@@ -47,7 +47,7 @@ jobs:
       # workflow_run always runs the workflow file from the default branch and
       # checks out its tip by default, which is not necessarily the commit that
       # was tested. Package what CI actually looked at.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
@@ -124,7 +124,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
