@@ -97,7 +97,7 @@ jobs:
         id: app
         if: steps.target.outputs.base != ''
         with:
-          app-id: ${{ vars.RELEASE_APP_ID }}
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: helm-charts
