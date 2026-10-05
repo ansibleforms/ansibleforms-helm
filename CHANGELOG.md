@@ -1,5 +1,19 @@
 # Changelog
 
+## 6.3.2
+
+`helm test` no longer fails a healthy release right after an install.
+
+### Fixed
+
+- **The database check in `helm test` tries four times, five seconds apart, before it
+  fails.** It used to try once. `helm install --wait` returns as soon as the MySQL pod is
+  Ready, but the Service only routes to it a moment later, once the endpoint is published
+  and kube-proxy has applied it. Run straight after an install, the single attempt could
+  land in that gap and report "nothing answered" on a release with nothing wrong with it.
+  A database that is really unreachable, closed or behind a NetworkPolicy that drops the
+  traffic stays silent on every attempt, so the test still fails, about a minute later.
+
 ## 6.3.1
 
 The repository is now `ansibleforms/helm-charts`.

@@ -95,12 +95,27 @@ spec:
             exactly like a closed port does, so the code could not tell them
             apart. Bytes on the wire can.
           */}}
+          {{- /*
+            A few attempts, not one. helm install --wait returns the moment the
+            MySQL pod turns Ready, and the Service only routes to it once its
+            endpoint has been published and kube-proxy has caught up, a moment
+            later. A single attempt landed in that gap now and then and failed
+            a release with nothing wrong with it. A database that is really
+            unreachable stays silent on every attempt, so this still fails, only
+            later: four attempts five seconds apart, about a minute at worst.
+          */}}
           db='{{ include "ansibleforms.mysql.host" . }}:{{ dig "port" "3306" ((.Values.applications | default dict).mysql | default dict) }}'
           echo "Connecting to $db"
-          handshake="$(curl -s --max-time 15 --connect-timeout 10 "telnet://${db}" \
-            </dev/null 2>/dev/null || true)"
+          handshake=""
+          for attempt in 1 2 3 4; do
+            handshake="$(curl -s --max-time 15 --connect-timeout 10 "telnet://${db}" \
+              </dev/null 2>/dev/null || true)"
+            [ -n "$handshake" ] && break
+            echo "  attempt $attempt: no answer yet"
+            [ "$attempt" = "4" ] || sleep 5
+          done
           if [ -z "$handshake" ]; then
-            echo "  nothing answered on $db: it is closed, unreachable, or something is dropping the traffic."
+            echo "  nothing answered on $db after 4 attempts: it is closed, unreachable, or something is dropping the traffic."
             exit 1
           fi
           echo "  the database answered with ${#handshake} bytes of handshake"
