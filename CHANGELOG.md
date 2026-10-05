@@ -1,5 +1,24 @@
 # Changelog
 
+## 6.3.0
+
+The default image now comes from the GitHub Container Registry.
+
+### Changed
+
+- **`containers.server.image` defaults to `ghcr.io/ansibleforms/ansibleforms:6.5.2`**,
+  instead of `ansibleguy/ansibleforms:6.2.1`. ghcr.io is now the canonical registry for
+  AnsibleForms: the project owns it, and it does not rate-limit anonymous pulls, which
+  Docker Hub does per IP - noticeable on nodes that share an address. Docker Hub keeps a
+  mirror with the same tags.
+
+  **The default AnsibleForms version moves from 6.2.1 to 6.5.2** (`appVersion` follows),
+  because ghcr.io/ansibleforms only carries 6.x from 6.5.2 on. If you never set
+  `containers.server.image`, upgrading the chart upgrades the application. 6.5 runs the
+  database migrations itself and still reads `forms.yaml`, so the forms ConfigMaps keep
+  working. To stay where you are, pin the image you run today, for example
+  `containers.server.image: ansibleguy/ansibleforms:6.2.1`.
+
 ## 6.2.9
 
 Credentials the chart can make up for itself, and a correction to the rollout

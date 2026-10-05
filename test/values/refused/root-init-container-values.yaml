@@ -20,7 +20,7 @@ containers:
   server:
     initContainers:
       - name: prepare-persistent-volume
-        image: ansibleguy/ansibleforms:6.2.1
+        image: ghcr.io/ansibleforms/ansibleforms:6.5.2
         command: ["sh", "-c", "chown -R 1000:1000 /app/dist/persistent"]
         securityContext:
           runAsUser: 0

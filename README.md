@@ -104,7 +104,7 @@ storages:
 
 containers:
   server:
-    image: ansibleguy/ansibleforms:6.2.1
+    image: ghcr.io/ansibleforms/ansibleforms:6.5.2
     resources:
       limits:
         cpu: "0.5"
@@ -840,7 +840,7 @@ containers:
     securityContext: null
     initContainers:
       - name: prepare-persistent-volume
-        image: ansibleguy/ansibleforms:6.2.1
+        image: ghcr.io/ansibleforms/ansibleforms:6.5.2
         command: ["sh", "-c", "chown -R 1000:1000 /app/dist/persistent"]
         securityContext:
           runAsUser: 0
@@ -907,7 +907,7 @@ containers:
   server:
     initContainers:
       - name: prepare-persistent-volume
-        image: ansibleguy/ansibleforms:6.1.3-rc
+        image: ghcr.io/ansibleforms/ansibleforms:6.5.2
         imagePullPolicy: IfNotPresent
         # This command changes the ownership of the specified directory.
         command: ["sh", "-c", "chown -R 1000:1000 /app/dist/persistent"]
