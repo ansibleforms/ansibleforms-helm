@@ -11,7 +11,7 @@ This Helm chart deploys the AnsibleForms application and its MySQL database on K
 - Supports both **dynamic provisioning** (StorageClass-based) and **pre-created static PVs**
 - Ingress is optional and highly customizable (hostname, TLS, annotations, etc.)
 - Service type (ClusterIP, LoadBalancer, NodePort) is configurable, with support for static LoadBalancer IPs
-- (Optional) Support for managing `forms.yaml`, `forms/*.yaml` definitions, and `custom.js` via ConfigMaps
+- (Optional) Support for managing `config.yaml`, the form files and `custom.js` via ConfigMaps
 
 Every value, its type, default and a one-line description: [VALUES.md](VALUES.md).
 
@@ -39,7 +39,7 @@ helm upgrade --install ansibleforms oci://ghcr.io/ansibleforms/charts/ansiblefor
 ```
 
 Pin the chart version in anything that runs unattended, for example
-`--version 6.2.2`, so a new release never lands on its own. Charts up to and including 6.2.9
+`--version 7.0.0`, so a new release never lands on its own. Charts up to and including 6.2.9
 are in the OCI registry at `oci://ghcr.io/ansibleguy76/charts/ansibleforms` instead.
 
 The chart repository lives at `https://ansibleforms.com/helm-charts/`. It was served from
@@ -116,7 +116,7 @@ storages:
 
 containers:
   server:
-    image: ghcr.io/ansibleforms/ansibleforms:6.5.2
+    image: ghcr.io/ansibleforms/ansibleforms:7.1.2
     resources:
       limits:
         cpu: "0.5"
@@ -244,9 +244,9 @@ If you do **not** need static PVs, simply leave `static.enabled: false` and use 
 
 ---
 
-### 4. Using ConfigMaps for `forms.yaml`, form definitions, and `custom.js` (optional)
+### 4. Using ConfigMaps for `config.yaml`, the form files, and `custom.js` (optional)
 
-AnsibleForms uses a main configuration file (`forms.yaml`) and can also load additional form definitions from a `forms/` directory inside the persistent folder. It also supports a `custom.js` file for client-side customization, typically mounted at `/app/dist/src/functions/custom.js` as described in the AnsibleForms FAQ.
+AnsibleForms 7 reads its base configuration (categories, roles and constants) from `config.yaml`, and the forms themselves only from the forms folder, `/app/dist/persistent/forms`, one or more forms per file. A `forms:` section inside `config.yaml` is an error in 7. It also supports a `custom.js` file with custom functions, loaded from `/app/dist/src/functions/custom.js`.
 
 This chart provides optional values to mount those files from ConfigMaps:
 
@@ -254,14 +254,14 @@ This chart provides optional values to mount those files from ConfigMaps:
 forms:
   configMap:
     enabled: true
-    name: ansibleforms-forms                # ConfigMap containing the main forms.yaml
-    key: forms.yaml                         # key in the ConfigMap
-    mountPath: /app/dist/persistent/forms.yaml
+    name: ansibleforms-config               # ConfigMap containing config.yaml
+    key: config.yaml                        # key in the ConfigMap
+    mountPath: /app/dist/persistent/config.yaml
 
   extraFormsConfigMap:
     enabled: true
-    name: ansibleforms-forms-defs           # ConfigMap containing multiple form YAMLs
-    mountPath: /app/dist/persistent/forms   # mounted as a directory
+    name: ansibleforms-forms-defs           # ConfigMap containing the form files
+    mountPath: /app/dist/persistent/forms   # mounted as the forms folder
 
   customJs:
     enabled: true
@@ -270,21 +270,23 @@ forms:
     mountPath: /app/dist/src/functions/custom.js
 ```
 
-When any of the `enabled` flags are `false` (the default), the chart behaves as before and does not mount the corresponding ConfigMap.
+When any of the `enabled` flags are `false` (the default), the chart does not mount the corresponding ConfigMap.
 
-#### 4.1 Example: main forms configuration (`forms.yaml`)
+A config file mounted from a ConfigMap is read-only, so the designer cannot save changes to it. Edit the ConfigMap instead, or keep the configuration in a git repository that AnsibleForms syncs.
 
-The following ConfigMap provides the main `forms.yaml` file, which defines categories, roles, and constants:
+#### 4.1 Example: base configuration (`config.yaml`)
+
+The following ConfigMap provides `config.yaml`, which defines categories, roles and constants:
 
 ```yaml
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ansibleforms-forms
+  name: ansibleforms-config
   namespace: ansibleforms
 data:
-  forms.yaml: |
+  config.yaml: |
     categories:
       - name: Default
         icon: bars
@@ -293,8 +295,6 @@ data:
       - name: Maintenance
         icon: cogs
       - name: Internal
-        icon: cogs
-      - name: Vmware
         icon: cogs
     roles:
       - name: admin
@@ -309,15 +309,13 @@ data:
       - name: internal
         groups:
           - ldap/internal
-        users:
-          - ldap/FRoca
     constants:
       AF_PLAYBOOKS: /app/dist/persistent/playbooks
 ```
 
-With the `forms.configMap` values set as shown earlier, this `forms.yaml` will be mounted at `/app/dist/persistent/forms.yaml`, which is the default location used by AnsibleForms.
+With the `forms.configMap` values set as shown earlier, this file is mounted at `/app/dist/persistent/config.yaml`, the default location AnsibleForms reads it from.
 
-#### 4.2 Example: additional form definitions (`forms/*.yaml`)
+#### 4.2 Example: the form files (`forms/*.yaml`)
 
 You can keep each form definition in a separate YAML file within a second ConfigMap. Each key under `data:` becomes a file inside `/app/dist/persistent/forms/`:
 
@@ -477,22 +475,13 @@ applications:
     password: ...   # or supply it through secrets.existingSecret
 ```
 
-**Create the schema first.** AnsibleForms migrates an existing schema forward
-but does not create one from nothing. The bundled MySQL gets it from the chart's
-init script, which your own server never sees, so apply
-[`files/schema.sql`](files/schema.sql) once before starting the application:
-
-```bash
-mysql -h your-db-host -u root -p < files/schema.sql
-```
-
-It creates the `AnsibleForms` database and its tables, creates nothing that is
-already there, and drops nothing, so re-running it is harmless. It grants no
-privileges either; give your AnsibleForms user access to that database yourself.
-
-Skip this and the symptom is confusing: the pod starts, passes its probes and
-serves the front page, because that page is static, while every query behind it
-fails with `Table 'AnsibleForms.jobs' doesn't exist`.
+**No schema to apply.** AnsibleForms 7 creates its schema when it finds the
+database empty, so a fresh server needs nothing beforehand. The user it connects
+with needs the rights to create tables there, and to create the `AnsibleForms`
+database too if it does not exist yet. On a database that already holds an
+AnsibleForms schema, from 6.x for example, it migrates that schema forward
+instead. Set `ALLOW_SCHEMA_CREATION: 0` under `applications.server.env` to stop
+it from ever creating a schema on its own.
 
 **Disabling MySQL on a release that already runs it deletes the PVC**, and with
 a reclaim policy of `Delete` the data goes with it. Take a dump first.
@@ -733,7 +722,7 @@ rollOnChange:
 from the cluster, and that returns nothing during `helm template`. Anything that
 renders first and applies afterwards, Argo CD and Flux included, would get a
 checksum that does not match the one an install produces. Turn it on if you run
-Helm directly and want a `forms.yaml` change to restart the server on the next
+Helm directly and want a `config.yaml` change to restart the server on the next
 upgrade.
 
 ## Checking an install
@@ -852,7 +841,7 @@ containers:
     securityContext: null
     initContainers:
       - name: prepare-persistent-volume
-        image: ghcr.io/ansibleforms/ansibleforms:6.5.2
+        image: ghcr.io/ansibleforms/ansibleforms:7.1.2
         command: ["sh", "-c", "chown -R 1000:1000 /app/dist/persistent"]
         securityContext:
           runAsUser: 0
@@ -885,7 +874,7 @@ that combination rather than let you find out the hard way.
 - All resource limits, storage, and service types are configurable.
 - Ingress can be enabled/disabled and fully customized.
 - Storage can be backed by dynamic StorageClasses or static PVs as needed.
-- Forms configuration (`forms.yaml` and additional `forms/*.yaml`) and `custom.js` can be managed via ConfigMaps as shown above.
+- The configuration (`config.yaml` and the form files in `forms/`) and `custom.js` can be managed via ConfigMaps as shown above.
 
 ### Extras 1. Define extra volumes (root level) that you want to mount to containers.
 ```
@@ -919,7 +908,7 @@ containers:
   server:
     initContainers:
       - name: prepare-persistent-volume
-        image: ghcr.io/ansibleforms/ansibleforms:6.5.2
+        image: ghcr.io/ansibleforms/ansibleforms:7.1.2
         imagePullPolicy: IfNotPresent
         # This command changes the ownership of the specified directory.
         command: ["sh", "-c", "chown -R 1000:1000 /app/dist/persistent"]

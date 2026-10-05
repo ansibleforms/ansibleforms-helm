@@ -1,9 +1,10 @@
 {{- if dig "enabled" true (.Values.mysql | default dict) }}
 {{- /*
-  The schema lives in files/schema.sql rather than inline here, so the exact
-  same statements can be applied by hand to a database the chart does not
-  manage. MySQL only runs anything in /docker-entrypoint-initdb.d when the data
-  directory is empty, so this is a first-boot affair.
+  Only the grant. AnsibleForms 7 creates its own schema when it finds an empty
+  database, so the chart no longer ships one: a copy kept here went stale with
+  every release that added a table. MySQL only runs anything in
+  /docker-entrypoint-initdb.d when the data directory is empty, so this is a
+  first-boot affair.
 */}}
 apiVersion: v1
 kind: ConfigMap
@@ -22,6 +23,4 @@ data:
     -- and AnsibleForms connects over the network from another pod.
     GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
     FLUSH PRIVILEGES;
-
-{{ .Files.Get "files/schema.sql" | indent 4 }}
 {{- end }}

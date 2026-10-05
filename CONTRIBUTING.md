@@ -54,7 +54,7 @@ that a few assertions that rendering alone would not make:
   is immutable
 - the MySQL probes exist and none of them carries a credential
 - the chart version moved, if anything under `Chart.yaml`, `values.yaml`,
-  `templates/` or `files/` of `charts/ansibleforms` did
+  `templates/` or `files/` (if it has one) of `charts/ansibleforms` did
 - the two security context combinations that cannot work are still refused, and
   the message still names the value to change
 

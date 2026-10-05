@@ -115,6 +115,13 @@ applications:
       ADMIN_USERNAME: admin
       # -- Key that encrypts stored credentials. Never change it once data exists.
       ENCRYPTION_SECRET: <ENTER_SECRET_HERE>
+      # The settings pages can save environment variables to a .env file on the
+      # persistent volume. Here the environment is declared in these values, so a
+      # setting saved in the interface would quietly override this file on every
+      # restart and drift away from it. AnsibleForms recommends 0 for Kubernetes:
+      # the pages then show every variable read-only, with the value in force.
+      # -- 0 makes the settings pages read-only for environment variables, so these values stay the only source.
+      ALLOW_ENV_EDIT: 0
 
       # -------- EXTRA ENV VARIABLES FOR SERVER --------
 
@@ -296,7 +303,7 @@ containers:
 
   server:
     # -- AnsibleForms image.
-    image: ghcr.io/ansibleforms/ansibleforms:6.5.2
+    image: ghcr.io/ansibleforms/ansibleforms:7.1.2
     # -- Server replicas. Keep 1: the pods share one volume and one scheduler.
     replicas: 1
 
@@ -499,15 +506,19 @@ containers:
 # ==============================================================================
 # FORMS CONFIGURATION
 # ==============================================================================
+# AnsibleForms 7 reads categories, roles and constants from config.yaml, and the
+# forms themselves only from the forms folder, one or more forms per file. A
+# forms: section in config.yaml is an error in 7. Each key of the
+# extraFormsConfigMap becomes a file in that folder.
 forms:
   configMap:
-    # -- Mount forms.yaml from a ConfigMap.
+    # -- Mount config.yaml (categories, roles, constants) from a ConfigMap.
     enabled: false
-    # -- Key in the ConfigMap that holds forms.yaml.
-    key: forms.yaml
-    # -- Where forms.yaml is mounted.
-    mountPath: /app/dist/persistent/forms.yaml
-    # -- Name of the ConfigMap holding forms.yaml.
+    # -- Key in the ConfigMap that holds config.yaml.
+    key: config.yaml
+    # -- Where config.yaml is mounted.
+    mountPath: /app/dist/persistent/config.yaml
+    # -- Name of the ConfigMap holding config.yaml.
     name: ''
   customJs:
     # -- Mount custom.js from a ConfigMap.
@@ -519,11 +530,11 @@ forms:
     # -- Name of the ConfigMap holding custom.js.
     name: ''
   extraFormsConfigMap:
-    # -- Mount extra form definitions from a ConfigMap.
+    # -- Mount the form files (one or more forms per key) from a ConfigMap.
     enabled: false
-    # -- Folder the extra form definitions are mounted in.
+    # -- The forms folder they are mounted as.
     mountPath: /app/dist/persistent/forms
-    # -- Name of the ConfigMap holding the extra form definitions.
+    # -- Name of the ConfigMap holding the form files.
     name: ''
 
 # ==============================================================================
@@ -584,13 +595,13 @@ rollOnChange:
   enabled: true
 
   # The objects it does not: a Secret supplied through secrets.existingSecret,
-  # and the ConfigMaps under `forms` holding forms.yaml, the extra definitions
+  # and the ConfigMaps under `forms` holding config.yaml, the form files
   # and custom.js. Seeing those means reading them from the cluster, and that
   # returns nothing during `helm template`, so anything rendering first and
   # applying afterwards, Argo CD and Flux included, would get a checksum that
   # does not match the one an install produces.
   #
-  # Turn it on if you drive the chart with helm directly and want a forms.yaml
+  # Turn it on if you drive the chart with helm directly and want a config.yaml
   # change to restart the server on the next upgrade.
   # -- Also roll on changes to secrets.existingSecret and the forms ConfigMaps. Not under helm template, Argo CD or Flux.
   external: false
