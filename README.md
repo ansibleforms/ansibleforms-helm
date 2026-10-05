@@ -5,9 +5,8 @@
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-ansibleforms.com-informational)](https://ansibleforms.com)
 
-The Helm chart that runs [AnsibleForms](https://github.com/ansibleforms/ansibleforms) and its MySQL database on
-Kubernetes, tested on every change by installing and upgrading it on three Kubernetes versions.
-The installation guide and the rest of the documentation are at [ansibleforms.com](https://ansibleforms.com/installation).
+The Helm chart that runs [AnsibleForms](https://github.com/ansibleforms/ansibleforms) and its MySQL database on Kubernetes,
+installed and upgraded on a real cluster on every change. Documentation: [ansibleforms.com](https://ansibleforms.com/installation).
 
 ## Charts
 
