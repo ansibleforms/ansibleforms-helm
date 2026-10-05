@@ -1111,3 +1111,25 @@ jobs:
         run: |
           kubectl -n np get all,networkpolicy || true
           kubectl -n np describe pods || true
+
+  # The one check the branch rules require. Requiring the jobs one by one would tie the
+  # rules to the matrix job names, which change whenever the Kubernetes versions move,
+  # and requiring only Lint and render let a pull request merge (auto-merge included)
+  # before the clusters had finished with it. This passes only when every job did.
+  passed:
+    name: CI passed
+    if: always()
+    needs: [lint, install, upgrade, ingress, networkpolicy]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Every job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for result in $RESULTS; do
+            [ "$result" = "success" ] || { echo "::error::A CI job ended with '$result'."; exit 1; }
+          done
