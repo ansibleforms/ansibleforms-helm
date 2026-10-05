@@ -25,3 +25,22 @@ updates:
       interval: weekly
     commit-message:
       prefix: ci
+
+  # The Kubernetes (kind node image), kubeconform and Calico versions CI tests against,
+  # pinned as FROM lines in test/versions/Dockerfile.
+  - package-ecosystem: docker
+    directory: /test/versions
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+
+  # The Kubernetes (kind node image), kubeconform and Calico versions CI tests against,
+  # pinned as FROM lines in test/versions/Dockerfile on the maintenance line.
+  - package-ecosystem: docker
+    directory: /test/versions
+    target-branch: release/6.x
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
