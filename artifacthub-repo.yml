@@ -1,0 +1,17 @@
+# Artifact Hub repository metadata. The release workflow publishes this file at the root of
+# the chart repository, https://ansibleforms.github.io/helm-charts/artifacthub-repo.yml,
+# which is where Artifact Hub looks for it.
+#
+# To list the chart on https://artifacthub.io:
+#   1. Sign in there and add a Helm repository with the URL
+#      https://ansibleforms.github.io/helm-charts/
+#   2. Copy the repository ID Artifact Hub shows into repositoryID below, and list the
+#      owners by the email of their Artifact Hub account. On the next release Artifact Hub
+#      reads them back, marks the publisher as verified and lets the owners claim it.
+#
+# Reference: https://artifacthub.io/docs/topics/repositories/helm-charts/
+
+# repositoryID: 00000000-0000-0000-0000-000000000000
+# owners:
+#   - name: <name>
+#     email: <email of the Artifact Hub account>
