@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - 'release/**'
   workflow_dispatch:
 
 permissions:
@@ -803,11 +804,20 @@ jobs:
           helm repo add ansibleforms https://ansibleforms.com/helm-charts/ >/dev/null
           helm repo update >/dev/null
 
-          # The newest version on the chart repository, which is whatever main published
-          # last. The version in Chart.yaml on this branch is not there yet.
-          PREV="$(helm search repo ansibleforms/ansibleforms -o json |
-                  python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["version"])')"
+          # The newest published version of the same major as this branch, no newer than
+          # it: on main that is the last 7.x, on release/6.x the last 6.x. Taking the
+          # newest version overall would have a 6.x pull request "upgrade" a 7 release
+          # down to 6. The first chart of a new major has no predecessor of its own, so
+          # it falls back to the newest one below it, which tests the major upgrade.
           HERE="$(helm show chart . | awk '/^version:/ {print $2}')"
+          PREV="$(helm search repo ansibleforms/ansibleforms --versions -o json | HERE="$HERE" python3 -c '
+          import json, os, sys
+          key = lambda s: tuple(int(x) for x in s.split("-")[0].split("."))
+          here = key(os.environ["HERE"])
+          versions = [e["version"] for e in json.load(sys.stdin)]
+          same = [v for v in versions if key(v)[0] == here[0] and key(v) <= here]
+          lower = [v for v in versions if key(v) < here]
+          print(max(same or lower or versions, key=key))')"
           echo "Upgrading a live $PREV release to $HERE"
 
           kubectl create namespace "$NS"
