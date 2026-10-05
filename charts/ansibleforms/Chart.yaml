@@ -7,7 +7,7 @@ type: application
 # AnsibleForms version the default image points at. They used to be kept in
 # lockstep, which stopped being true as soon as the chart needed a fix of its
 # own, so they are tracked separately from here on.
-version: 6.3.4
+version: 6.3.5
 appVersion: "6.5.2"
 
 home: https://ansibleforms.com
@@ -26,3 +26,25 @@ keywords:
 maintainers:
   - name: ansibleguy76
     url: https://github.com/ansibleguy76
+
+# Shown by Artifact Hub on the chart's page. artifacthub.io/images has to name the images
+# values.yaml deploys; CI fails when they disagree.
+annotations:
+  artifacthub.io/license: GPL-3.0
+  artifacthub.io/category: integration-delivery
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://ansibleforms.com
+    - name: Application source
+      url: https://github.com/ansibleforms/ansibleforms
+    - name: Chart source
+      url: https://github.com/ansibleforms/helm-charts
+    - name: Values reference
+      url: https://github.com/ansibleforms/helm-charts/blob/main/charts/ansibleforms/VALUES.md
+  artifacthub.io/images: |
+    - name: ansibleforms
+      image: ghcr.io/ansibleforms/ansibleforms:6.5.2
+    - name: mysql
+      image: mysql:8.4
+    - name: helm-test
+      image: curlimages/curl:8.10.1

@@ -164,6 +164,7 @@ jobs:
           app = str(chart["appVersion"])
           image = values["containers"]["server"]["image"]
           mysql = values["containers"]["mysql"]["image"]
+          test_image = values["tests"]["image"]
 
           failures = []
           if ":" not in image:
@@ -176,6 +177,14 @@ jobs:
           # reschedule into an unattended major upgrade with no way back.
           if ":" not in mysql or mysql.rsplit(":", 1)[1] in ("latest", ""):
               failures.append(f"containers.mysql.image {mysql!r} is not pinned to a version")
+
+          # Artifact Hub lists the images from this annotation, so it has to name
+          # exactly what values.yaml deploys, and nothing else.
+          listed = sorted(i["image"] for i in yaml.safe_load(
+              chart.get("annotations", {}).get("artifacthub.io/images", "[]")) or [])
+          deployed = sorted([image, mysql, test_image])
+          if listed != deployed:
+              failures.append(f"artifacthub.io/images lists {listed} but values.yaml deploys {deployed}")
 
           if failures:
               print("\n".join(failures))

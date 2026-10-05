@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.3.5
+
+Ready for Artifact Hub.
+
+### Added
+
+- **Artifact Hub annotations** on the chart: license (GPL-3.0), category, links to the
+  documentation, the sources and the values reference, and the images it deploys.
+- **`artifacthub-repo.yml`** is published at the root of the chart repository, where
+  Artifact Hub reads the repository ID and owners once the repository is registered there.
+
 ## 6.3.4
 
 A values reference.

@@ -175,6 +175,8 @@ jobs:
           done
           ls -la public
           helm repo index public --url "${PAGE_URL}/"
+          # Artifact Hub reads its repository metadata from the root of the chart repository
+          cp artifacthub-repo.yml public/
 
       - name: Write a landing page
         if: steps.pages.outcome == 'success'
