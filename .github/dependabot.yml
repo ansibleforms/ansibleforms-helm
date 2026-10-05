@@ -1,7 +1,7 @@
 version: 2
 
 # Keeps the workflow actions on their latest version, majors included : CI lints the chart,
-# installs it on three Kubernetes versions and upgrades a live release on every pull request,
+# installs it on a kind cluster and upgrades a live release on every pull request,
 # so a breaking action fails there before it merges. Updates are never grouped : every
 # action gets its own pull request, so each one can be reviewed and reverted on its own.
 #
