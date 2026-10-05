@@ -133,18 +133,18 @@ jobs:
         env:
           KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
         run: |
-          if [ -n "$KEY" ] && [ -n "${{ vars.RELEASE_APP_ID }}" ]; then
+          if [ -n "$KEY" ] && [ -n "${{ vars.RELEASE_APP_CLIENT_ID }}" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::RELEASE_APP_ID or RELEASE_APP_PRIVATE_KEY is not set - ansibleforms.com picks this release up on its nightly build"
+            echo "::notice::RELEASE_APP_CLIENT_ID or RELEASE_APP_PRIVATE_KEY is not set - ansibleforms.com picks this release up on its nightly build"
           fi
 
       - uses: actions/create-github-app-token@v3
         id: app
         if: steps.app_configured.outputs.enabled == 'true'
         with:
-          app-id: ${{ vars.RELEASE_APP_ID }}
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: website
