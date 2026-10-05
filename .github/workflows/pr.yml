@@ -1,0 +1,64 @@
+name: PR
+
+# Pull requests are squash-merged, and the squash commit takes the PR TITLE as its message,
+# so it has to be a Conventional Commit - the same rule as the app repository. See
+# CONTRIBUTING.md.
+#
+# No secrets and a read-only token, so these run on pull requests from forks as well.
+# The job names are required checks in the main ruleset - renaming one breaks that rule.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [main, 'release/**']
+
+permissions:
+  pull-requests: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  title:
+    name: Title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            revert
+            security
+            docs
+            test
+            ci
+            chore
+            build
+            style
+          # "fix: Something" reads badly as a changelog line next to "fix: something"
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: |
+            The subject "{subject}" of the title "{title}" should start with a lowercase letter.
+
+  branch:
+    name: Branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Branch name has a type prefix
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          types='feat|fix|perf|refactor|revert|security|docs|test|ci|chore|build|style'
+          # dependabot names its own branches
+          if [[ "$BRANCH" =~ ^($types)/.+ || "$BRANCH" =~ ^dependabot/.+ ]]; then
+            echo "branch '$BRANCH' is fine"
+            exit 0
+          fi
+          echo "::error::branch '$BRANCH' should be named <type>/<short-description>, with type one of: ${types//|/, } - for example fix/ldap-group-filter"
+          exit 1
