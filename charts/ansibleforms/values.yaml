@@ -1,6 +1,6 @@
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # NAMING
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Every resource is named after the release: <release>-server, <release>-mysql,
 # <release>-secrets and so on. They used to be plain literals ("server",
 # "mysql"), which meant two releases in one namespace overwrote each other's
@@ -9,28 +9,32 @@
 # nameOverride changes the app.kubernetes.io/name label, fullnameOverride
 # replaces the release name as the prefix of every resource name. Both are
 # optional and almost nobody needs them.
+# -- Overrides the app.kubernetes.io/name label.
 nameOverride: ''
+# -- Replaces the release name as the prefix of every resource name.
 fullnameOverride: ''
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # LABELS AND ANNOTATIONS FOR EVERYTHING
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Added to every object the chart creates, and to both pods. Useful for cost
 # tags, ownership, Argo CD tracking, backup selectors and the like.
 #
 # commonLabels never reach a Deployment's selector. A selector is immutable
 # once the Deployment exists, so a label added there could never be changed or
 # removed again, and an existing release would fail to upgrade outright.
+# -- Labels added to every object and both pods (never to a selector).
 commonLabels: {}
 #   team: platform
 #   cost-center: "4711"
 
+# -- Annotations added to every object and both pods.
 commonAnnotations: {}
 #   example.com/owner: platform@example.com
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # PULLING THE IMAGES
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Secrets used to pull both images, for a private registry or a mirror. The
 # Secrets have to exist in the release namespace already, the chart does not
 # create them:
@@ -42,12 +46,13 @@ commonAnnotations: {}
 # Override per component with containers.server.imagePullSecrets or
 # containers.mysql.imagePullSecrets when the two images live in different
 # registries.
+# -- Pull secrets for both images; they must already exist in the namespace.
 imagePullSecrets: []
 #   - name: regcred
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # MYSQL DEPLOYMENT
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Whether the chart deploys its own MySQL. Turn it off to point AnsibleForms at
 # a database you already run, and set applications.mysql.host and .port below to
 # reach it. The Deployment, Service, PVC and the two ConfigMaps are then all
@@ -56,6 +61,7 @@ imagePullSecrets: []
 # Careful with an existing release: disabling this deletes the MySQL PVC and,
 # with a reclaim policy of Delete, the data along with it. Take a dump first.
 mysql:
+  # -- Deploy the bundled MySQL. Off to use an existing database (deletes the MySQL PVC on an existing release).
   enabled: true
 
   # The my.cnf of the bundled database. Mounted over /etc/mysql/my.cnf, which
@@ -76,6 +82,7 @@ mysql:
   # Changing this does not restart the pod on its own. A ConfigMap update is
   # picked up on the next restart, so roll it yourself, or put a checksum in
   # containers.mysql.podAnnotations so Helm does it for you.
+  # -- my.cnf for the bundled MySQL, mounted over /etc/mysql/my.cnf.
   config: |
     [mysqld]
 
@@ -86,7 +93,9 @@ applications:
   # the database is the bundled one or your own. Leave password out entirely if
   # you supply the credentials through secrets.existingSecret further down.
   mysql:
+    # -- Database password. Leave out with secrets.existingSecret or secrets.generate.
     password: <ENTER_PASSWORD_HERE>
+    # -- Database user.
     user: root
     # Defaults to the bundled service on "mysql":3306. Point these at your own
     # server when mysql.enabled is false.
@@ -95,11 +104,16 @@ applications:
 
   # SERVER CONFIGURATION
   server:
+    # -- Environment variables for AnsibleForms. Any application setting can be added here.
     env:
       # -------- BASIC ENV VARIABLES REQUIRED --------
+      # -- 1 serves HTTPS on 443 with the built-in self-signed certificate, 0 serves HTTP on 80.
       HTTPS: 0 # Enables/Disables HTTP/HTTPS Ports 0 [(false) -> port: 80] [1 (true) -> port: 443]
+      # -- Password of the local admin user created on first start.
       ADMIN_PASSWORD: <ENTER_PASSWORD_HERE>
+      # -- Name of the local admin user created on first start.
       ADMIN_USERNAME: admin
+      # -- Key that encrypts stored credentials. Never change it once data exists.
       ENCRYPTION_SECRET: <ENTER_SECRET_HERE>
 
       # -------- EXTRA ENV VARIABLES FOR SERVER --------
@@ -110,44 +124,56 @@ applications:
       # ******** ENABLE THIS FOR PRIVATE CA CERTS ********
       # NODE_EXTRA_CA_CERTS: /etc/custom-certs/custom-ca.crt
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # CONTAINERS CONFIGURATION
-# ------------------------------------------------------------------------------
+# ==============================================================================
 containers:
 
 # ~~~~
 
   mysql:
-    # ---------------------------------------------------
+    # ===================================================
     # WHERE THIS POD IS ALLOWED TO RUN
-    # ---------------------------------------------------
+    # ===================================================
     # Plain Kubernetes, passed through as written. All optional and all empty
     # by default, so nothing changes unless you set them. The database is the
     # half that owns a volume, so this is usually the one that needs pinning
     # to whatever node its storage lives on.
+    # -- MySQL pod nodeSelector.
     nodeSelector: {}
     #   kubernetes.io/hostname: node-1
+    # -- MySQL pod tolerations.
     tolerations: []
     #   - key: node-role.kubernetes.io/control-plane
     #     operator: Exists
     #     effect: NoSchedule
+    # -- MySQL pod affinity.
     affinity: {}
+    # -- MySQL pod topology spread constraints.
     topologySpreadConstraints: []
+    # -- MySQL pod priority class.
     priorityClassName: ''
     # Extra labels and annotations on the pod only, on top of commonLabels.
+    # -- Extra labels on the MySQL pod.
     podLabels: {}
+    # -- Extra annotations on the MySQL pod.
     podAnnotations: {}
     # Overrides the release wide imagePullSecrets for this image alone.
+    # -- Pull secrets for the MySQL image only; overrides imagePullSecrets.
     imagePullSecrets: []
     # The chart does not create a ServiceAccount. Name one you manage yourself.
+    # -- Existing ServiceAccount for the MySQL pod. Empty uses the namespace default.
     serviceAccountName: ''
 
     # Pinned on purpose. A floating tag means an unattended major upgrade the
     # next time the pod is rescheduled, and MySQL does not support downgrades,
     # so a rollback would leave the data directory unreadable.
     # Already running a 9.x image? Set this to your current tag before upgrading.
+    # -- MySQL image.
     image: mysql:8.4
+    # -- MySQL image pull policy.
     imagePullPolicy: IfNotPresent
+    # -- MySQL container resources.
     resources:
       limits:
         cpu: '2'
@@ -156,9 +182,9 @@ containers:
         cpu: '0.5'
         memory: 512Mi
 
-    # ---------------------------------------------------
+    # ===================================================
     # HEALTH CHECKS
-    # ---------------------------------------------------
+    # ===================================================
     # All three run the same command. mysqladmin ping exits 0 as soon as the
     # server answers, and it answers "access denied" long before it would answer
     # a query, which is the signal wanted here: the port is open and the server
@@ -168,6 +194,7 @@ containers:
     # A plain TCP check would not do. While the data directory is being created
     # the entrypoint runs a temporary server on a socket with networking off, so
     # a port check calls MySQL ready long before it is.
+    # -- Command behind all three MySQL probes. Empty uses mysqladmin ping over TCP.
     probeCommand: []
     #   - sh
     #   - -c
@@ -176,6 +203,7 @@ containers:
     # Holds the other two back while the data directory is created and the init
     # script runs, which on a first boot takes far longer than a healthy server
     # ever will. failureThreshold x periodSeconds is the budget, 300s here.
+    # -- MySQL startup probe; failureThreshold x periodSeconds is the first-boot budget.
     startup:
       enabled: true
       initialDelaySeconds: 10
@@ -193,6 +221,7 @@ containers:
     # the Service has no endpoint at all. What changes is that everything which
     # reads readiness now tells the truth: helm --wait, Argo CD health, and
     # anything else that treats the database as a dependency.
+    # -- MySQL readiness probe.
     readiness:
       enabled: true
       initialDelaySeconds: 5
@@ -204,6 +233,7 @@ containers:
     # than leaving it alone, so this only fires after 90s of no answer, and only
     # once the startup probe has already succeeded. Set enabled to false if you
     # would rather it never restarted the database at all.
+    # -- MySQL liveness probe, deliberately slack.
     liveness:
       enabled: true
       initialDelaySeconds: 15
@@ -211,20 +241,25 @@ containers:
       timeoutSeconds: 10
       failureThreshold: 3
 
-    # ---------------------------------------------------
+    # ===================================================
     # EXTRAS, same shape as the server further down
-    # ---------------------------------------------------
+    # ===================================================
+    # -- Extra env entries for the MySQL container.
     extraEnv: []
     #   - name: MYSQL_INITDB_SKIP_TZINFO
     #     value: "1"
+    # -- ConfigMaps or Secrets injected as environment into the MySQL container.
     extraEnvFrom: []
+    # -- Extra volumes on the MySQL pod.
     extraVolumes: []
+    # -- Extra volume mounts in the MySQL container.
     extraVolumeMounts: []
+    # -- Init containers for the MySQL pod.
     initContainers: []
 
-    # ---------------------------------------------------
+    # ===================================================
     # SECURITY CONTEXT
-    # ---------------------------------------------------
+    # ===================================================
     # These defaults satisfy the restricted Pod Security Standard, which several
     # managed distributions now enforce by default and which the chart used to
     # fail outright.
@@ -241,6 +276,7 @@ containers:
     # NFS with root_squash may need, set the whole map to null. Not to {}: Helm
     # merges your values file over this one, and an empty map merges to exactly
     # what is written here. Only null removes a key.
+    # -- MySQL pod security context. Set to null together with securityContext to drop both.
     podSecurityContext:
       runAsNonRoot: true
       runAsUser: 999
@@ -249,6 +285,7 @@ containers:
       fsGroupChangePolicy: OnRootMismatch
       seccompProfile:
         type: RuntimeDefault
+    # -- MySQL container security context.
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
@@ -258,7 +295,9 @@ containers:
 # ~~~~
 
   server:
+    # -- AnsibleForms image.
     image: ghcr.io/ansibleforms/ansibleforms:6.5.2
+    # -- Server replicas. Keep 1: the pods share one volume and one scheduler.
     replicas: 1
 
     # Accepts either "Recreate" / "RollingUpdate" or the Kubernetes shape
@@ -273,27 +312,33 @@ containers:
     #
     # The cost is that a rollout now has a gap instead of an overlap. With one
     # replica sharing one volume there was never a real overlap to keep.
+    # -- Deployment strategy, Recreate or RollingUpdate (or the Kubernetes shape).
     strategy: "Recreate"
 
     # Written into the pod template, so changing them triggers a rollout. Handy
     # for a checksum annotation when the forms ConfigMap changes.
+    # -- Extra annotations on the server pod; changing them triggers a rollout.
     podAnnotations: {}
 
     # Extra labels on the pod only, on top of commonLabels.
+    # -- Extra labels on the server pod.
     podLabels: {}
 
-    # ---------------------------------------------------
+    # ===================================================
     # WHERE THIS POD IS ALLOWED TO RUN
-    # ---------------------------------------------------
+    # ===================================================
     # Plain Kubernetes, passed through as written. All optional and all empty
     # by default, so nothing changes unless you set them.
+    # -- Server pod nodeSelector.
     nodeSelector: {}
     #   kubernetes.io/hostname: node-1
+    # -- Server pod tolerations.
     tolerations: []
     #   - key: workload
     #     operator: Equal
     #     value: apps
     #     effect: NoSchedule
+    # -- Server pod affinity.
     affinity: {}
     #   nodeAffinity:
     #     requiredDuringSchedulingIgnoredDuringExecution:
@@ -302,18 +347,24 @@ containers:
     #             - key: kubernetes.io/arch
     #               operator: In
     #               values: [amd64]
+    # -- Server pod topology spread constraints.
     topologySpreadConstraints: []
+    # -- Server pod priority class.
     priorityClassName: ''
 
     # Overrides the release wide imagePullSecrets for this image alone.
+    # -- Pull secrets for the AnsibleForms image only; overrides imagePullSecrets.
     imagePullSecrets: []
 
     # The chart does not create a ServiceAccount. Name one you manage yourself,
     # otherwise the namespace's "default" is used.
+    # -- Existing ServiceAccount for the server pod. Empty uses the namespace default.
     serviceAccountName: ''
 
     # A terminal on a server process is not useful and keeps stdin open.
+    # -- Keep stdin open on the server container.
     stdin: false
+    # -- Allocate a TTY for the server container.
     tty: false
 
     # The app listens on 80 or 443, both privileged, while the container runs
@@ -323,7 +374,9 @@ containers:
     # The sysctl is on the kubelet's safe list and allowed under the restricted
     # pod security standard. Set it to false only if your kubelet refuses the
     # sysctl, and then serve the app on a port above 1024.
+    # -- Let the non-root server bind ports 80 and 443 (sets net.ipv4.ip_unprivileged_port_start).
     bindPrivilegedPorts: true
+    # -- Server container resources.
     resources:
       limits:
         cpu: '4'
@@ -339,11 +392,12 @@ containers:
     #
     # Put it back only if your storage ignores fsGroup, and know that doing so
     # gives up on the restricted standard.
+    # -- Init containers for the server pod.
     initContainers: []
 
-    # ---------------------------------------------------
+    # ===================================================
     # SECURITY CONTEXT
-    # ---------------------------------------------------
+    # ===================================================
     # Pod level, so it covers the container and anything you add to
     # initContainers. Together with the container level context the chart sets
     # further down, this is what makes the release installable in a namespace
@@ -357,6 +411,7 @@ containers:
     # To go back to no pod security context at all, set the whole map to null.
     # Not to {}: Helm merges your values file over this one, and an empty map
     # merges to exactly what is written here. Only null removes a key.
+    # -- Server pod security context. Set to null together with securityContext to drop both.
     podSecurityContext:
       runAsNonRoot: true
       runAsUser: 1000
@@ -366,14 +421,14 @@ containers:
       seccompProfile:
         type: RuntimeDefault
 
-  # ------------------------------------------------------------------------------
+  # ==============================================================================
   # LIVENESS / READINESS CONFIGURATION
-  # ------------------------------------------------------------------------------
-
+  # ==============================================================================
     # The startup probe covers the first boot, when the database migrations run
     # and the app can take minutes to answer. Until it succeeds the liveness
     # probe is not evaluated, which is what stops the restart loop people hit on
     # a fresh install. failureThreshold x periodSeconds is the budget, 300s here.
+    # -- Server startup probe (HTTP).
     startup:
       enabled: true
       path: /
@@ -382,12 +437,14 @@ containers:
       timeoutSeconds: 5
       failureThreshold: 30
 
+    # -- Server liveness probe (HTTP).
     liveness:
       path: /
       initialDelaySeconds: 15
       periodSeconds: 15
       timeoutSeconds: 15
       failureThreshold: 3
+    # -- Server readiness probe (HTTP).
     readiness:
       path: /
       initialDelaySeconds: 15
@@ -395,12 +452,13 @@ containers:
       timeoutSeconds: 15
       failureThreshold: 3
 
-  # ---------------------------------------------------
+  # ===================================================
   # EXTRA ENVIRONMENT
-  # ---------------------------------------------------
+  # ===================================================
   # Plain Kubernetes env entries, for anything applications.server.env cannot
   # express: a value read from another Secret or ConfigMap, or from the
   # downward API. Written after the generated variables, so it wins.
+    # -- Extra env entries for the server, written after the generated ones so they win.
     extraEnv: []
     #   - name: ENV
     #     value: production
@@ -411,23 +469,24 @@ containers:
     #         key: token
 
   # Whole ConfigMaps or Secrets injected as environment at once.
+    # -- ConfigMaps or Secrets injected as environment into the server.
     extraEnvFrom: []
     #   - configMapRef:
     #       name: ansibleforms-extra-config
     #   - secretRef:
     #       name: ansibleforms-extra-secrets
 
-  # ---------------------------------------------------
+  # ===================================================
   # ENABLE THIS FOR CUSTOM COMMANDS
-  # ---------------------------------------------------
+  # ===================================================
     # customCommand:
     #   command: ["/bin/sh", "-c"]
     #   args:
     #   - "node ./index.js"
 
-  # ---------------------------------------------------
+  # ===================================================
   # ENABLE THIS FOR CUSTOM CA CERTS
-  # ---------------------------------------------------
+  # ===================================================
     # extraVolumeMounts:
     #   - name: ca-certs-configmap
     #     mountPath: /etc/custom-certs/custom-ca.crt
@@ -437,29 +496,39 @@ containers:
 # ~~~~
 
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # FORMS CONFIGURATION
-# ------------------------------------------------------------------------------
-
+# ==============================================================================
 forms:
   configMap:
+    # -- Mount forms.yaml from a ConfigMap.
     enabled: false
+    # -- Key in the ConfigMap that holds forms.yaml.
     key: forms.yaml
+    # -- Where forms.yaml is mounted.
     mountPath: /app/dist/persistent/forms.yaml
+    # -- Name of the ConfigMap holding forms.yaml.
     name: ''
   customJs:
+    # -- Mount custom.js from a ConfigMap.
     enabled: false
+    # -- Key in the ConfigMap that holds custom.js.
     key: custom.js
+    # -- Where custom.js is mounted.
     mountPath: /app/dist/src/functions/custom.js
+    # -- Name of the ConfigMap holding custom.js.
     name: ''
   extraFormsConfigMap:
+    # -- Mount extra form definitions from a ConfigMap.
     enabled: false
+    # -- Folder the extra form definitions are mounted in.
     mountPath: /app/dist/persistent/forms
+    # -- Name of the ConfigMap holding the extra form definitions.
     name: ''
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # NETWORK POLICY
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Off by default, and not only out of caution: NetworkPolicy is enforced by the
 # CNI, and several common ones do not enforce it at all. Flannel is the usual
 # example. A policy that nothing enforces is worse than no policy, because it
@@ -470,10 +539,12 @@ forms:
 # left alone everywhere, since the server has to reach whatever your playbooks
 # talk to, and guessing that list would break more than it protects.
 networkPolicy:
+  # -- Only the server of this release may connect to the bundled MySQL. Needs a CNI that enforces NetworkPolicy.
   enabled: false
 
   # Extra peers allowed to reach MySQL, as plain NetworkPolicyPeer entries. For
   # a backup job, or a tool you run by hand.
+  # -- Extra NetworkPolicyPeer entries allowed to reach MySQL.
   mysqlExtraFrom: []
   #   - namespaceSelector:
   #       matchLabels:
@@ -484,15 +555,17 @@ networkPolicy:
   # differs per cluster. With `from` empty the policy would let nothing in at
   # all, so the chart refuses to render that rather than cutting you off.
   server:
+    # -- Also restrict who may connect to the server.
     enabled: false
+    # -- NetworkPolicyPeer entries allowed to reach the server; required when the server policy is on.
     from: []
     #   - namespaceSelector:
     #       matchLabels:
     #         kubernetes.io/metadata.name: ingress-nginx
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # ROLLING WHEN THE CONFIGURATION CHANGES
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # A pod reads its configuration once, when it starts. Change the Secret and the
 # running process keeps the environment it was given; change the my.cnf
 # ConfigMap and the file inside the container does not move at all, because it
@@ -507,6 +580,7 @@ networkPolicy:
 rollOnChange:
   # The objects the chart renders itself: the generated Secret and the MySQL
   # my.cnf. Always deterministic, since the checksum comes from the templates.
+  # -- Roll the pods when the generated Secret or my.cnf changes.
   enabled: true
 
   # The objects it does not: a Secret supplied through secrets.existingSecret,
@@ -518,11 +592,12 @@ rollOnChange:
   #
   # Turn it on if you drive the chart with helm directly and want a forms.yaml
   # change to restart the server on the next upgrade.
+  # -- Also roll on changes to secrets.existingSecret and the forms ConfigMaps. Not under helm template, Argo CD or Flux.
   external: false
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # HELM TEST
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # The pod `helm test` runs. It fetches the front page through the Service and
 # checks the page is really AnsibleForms rather than something else answering
 # 200, then opens a connection to the database. `ct install` runs it in CI after
@@ -533,21 +608,29 @@ rollOnChange:
 # the namespace refuses would fail `helm test` for a reason that has nothing to
 # do with the release.
 tests:
+  # -- Render the helm test pod.
   enabled: true
+  # -- Image of the helm test pod.
   image: curlimages/curl:8.10.1
   # The uid the image already runs as. Change it with the image.
+  # -- UID the test pod runs as; change it with the image.
   runAsUser: 100
+  # -- GID the test pod runs as.
   runAsGroup: 100
   # The test pod is scheduled like anything else, so on a cluster where the
   # nodes are tainted it needs to be told the same things the other two are.
+  # -- Test pod nodeSelector.
   nodeSelector: {}
+  # -- Test pod tolerations.
   tolerations: []
+  # -- Test pod affinity.
   affinity: {}
+  # -- Pull secrets for the test image.
   imagePullSecrets: []
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # SECRETS
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # By default the chart creates a Secret named <release>-secrets from the values
 # above. Point existingSecret at a Secret you manage instead, and the chart will
 # not create or touch one: use it with External Secrets, Sealed Secrets, SOPS,
@@ -560,6 +643,7 @@ tests:
 # applications.mysql.password and the sensitive entries under
 # applications.server.env can then be left out entirely.
 secrets:
+  # -- Use this existing Secret instead of creating one. Needs DB_USER, DB_PASSWORD, ENCRYPTION_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD.
   existingSecret: ''
 
   # Make up whatever is not supplied, instead of refusing to render. Off by
@@ -588,38 +672,50 @@ secrets:
   # `helm uninstall` leaves it behind and a reinstall picks the same values back
   # up rather than quietly making the old data unreadable. Delete it by hand
   # when you really do mean to start over.
+  # -- Generate missing credentials on install and keep them on upgrades. Refuses to run under helm template.
   generate: false
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # INGRESS CONFIGURATION
-# ------------------------------------------------------------------------------
-
+# ==============================================================================
 ingress:
+  # -- Annotations on the Ingress.
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+  # -- IngressClass name.
   className: nginx
+  # -- Create an Ingress.
   enabled: true
+  # -- Extra annotations on the Ingress, merged with ingress.annotations.
   extraAnnotations: {}
+  # -- Additional hostnames.
   extraHosts: []
+  # -- Additional paths.
   extraPaths: []
+  # -- Hostname the Ingress answers on.
   hostname: <YOUR INGRESS URL>
+  # -- Path of the Ingress rule.
   path: /
+  # -- pathType of the Ingress rule.
   pathType: Prefix
   tls:
+    # -- Enable TLS on the Ingress.
     enabled: true
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # SERVICES CONFIGURATION
-# ------------------------------------------------------------------------------
-
+# ==============================================================================
 services:
 # ~~~~
   mysql:
+    # -- MySQL Service type.
     type: ClusterIP
+    # -- Annotations on the MySQL Service.
     annotations: {}
 # ~~~~
   server:
+    # -- Server Service type: ClusterIP, NodePort or LoadBalancer.
     type: ClusterIP
     # Annotations on the Service, not on the Ingress. Traefik reads its
     # service.* settings from here, which is where you tell it to speak TLS to
@@ -637,39 +733,51 @@ services:
     # ingress.extraAnnotations:
     #
     #     nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+    # -- Annotations on the server Service (for example traefik backend settings).
     annotations: {}
 # ~~~~
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # STORAGE CONFIGURATION
-# ------------------------------------------------------------------------------
-
+# ==============================================================================
 storages:
 # ~~~~
   mysql:
+    # -- StorageClass for the MySQL volume. Empty uses the cluster default.
     className: ''
+    # -- Size of the MySQL volume.
     size: 10Gi
     # ReadWriteMany is the default the chart has always used. Plenty of storage
     # classes only offer ReadWriteOnce, and with a single replica that is fine.
+    # -- Access mode of the MySQL volume. ReadWriteOnce is fine with one replica.
     accessMode: ReadWriteMany
     static:
+      # -- Bind the MySQL claim to a pre-created PersistentVolume.
       enabled: false
+      # -- storageClassName of that PersistentVolume.
       storageClassName: ''
+      # -- Name of that PersistentVolume.
       volumeName: ''
 # ~~~~
   server:
+    # -- StorageClass for the server volume. Empty uses the cluster default.
     className: ''
+    # -- Size of the server volume.
     size: 10Gi
+    # -- Access mode of the server volume. ReadWriteOnce is fine with one replica.
     accessMode: ReadWriteMany
     static:
+      # -- Bind the server claim to a pre-created PersistentVolume.
       enabled: false
+      # -- storageClassName of that PersistentVolume.
       storageClassName: ''
+      # -- Name of that PersistentVolume.
       volumeName: ''
 # ~~~~
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # ADD HERE EXTRA VOLUME MOUNTS (if needed) (e.g CUSTOM CA CONFIGMAP or SECRET)
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # extraVolumes:
 #   - name: ca-certs-configmap
 #     configMap:

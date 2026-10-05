@@ -12,6 +12,7 @@ permissions:
 
 env:
   KUBECONFORM_VERSION: "0.6.7"
+  HELM_DOCS_VERSION: "1.14.2"
 
 # The chart lives in charts/ansibleforms. Every run step starts there, so ".", ci/,
 # Chart.yaml, values.yaml and files/ all mean the chart, exactly as they did when it sat
@@ -42,6 +43,22 @@ jobs:
         run: |
           pip install --quiet yamllint
           yamllint --strict .
+
+      # VALUES.md is generated from the "# --" comments in values.yaml. A pull request
+      # that changes a value or its comment without regenerating it would merge a
+      # reference that no longer matches the chart, so CI regenerates it and fails
+      # on any difference.
+      - name: VALUES.md matches values.yaml
+        working-directory: .
+        run: |
+          set -euo pipefail
+          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/r" -w /r \
+            "jnorwood/helm-docs:v${HELM_DOCS_VERSION}" \
+            --chart-search-root charts --template-files VALUES.md.gotmpl \
+            --output-file VALUES.md --ignore-non-descriptions
+          git diff --exit-code -- charts/*/VALUES.md || {
+            echo "::error::VALUES.md is out of date. Run the helm-docs command at the top of it and commit the result."
+            exit 1; }
 
       # Publishing is driven by the version in Chart.yaml, and the release
       # workflow does nothing when the tag already exists. So a pull request that

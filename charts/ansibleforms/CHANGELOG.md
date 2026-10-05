@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.3.4
+
+A values reference.
+
+### Added
+
+- **[VALUES.md](VALUES.md)** lists every value with its type, default and a one-line
+  description, generated from new `# --` comments in values.yaml by helm-docs. The longer
+  explanations in values.yaml are unchanged; its section banners now use `# ===` lines.
+
 ## 6.3.3
 
 The chart moved to `charts/ansibleforms` in the repository, changelog included. The packaged

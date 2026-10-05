@@ -23,6 +23,21 @@ Some of them are driven by hand from the workflow: the two `ingress-*` files are
 installed behind a real controller, and `minimal-mysql` exists to prove the
 chart still renders with its values cleared.
 
+## Documenting a value
+
+Every value carries a one-line `# --` comment directly above it, which
+[helm-docs](https://github.com/norwoodj/helm-docs) turns into
+`charts/ansibleforms/VALUES.md`. Section banners in values.yaml use `# ===`, because a line
+starting with `# --` is read as a description. After changing a value or its comment,
+regenerate the file:
+
+```bash
+helm-docs --chart-search-root charts --template-files VALUES.md.gotmpl \
+  --output-file VALUES.md --ignore-non-descriptions
+```
+
+CI fails when VALUES.md does not match values.yaml.
+
 ## What CI checks
 
 Four jobs, three of which need a cluster:
