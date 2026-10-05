@@ -4,8 +4,9 @@
 #
 #   kind-node    The Kubernetes every kind cluster runs. Its tag is the Kubernetes version,
 #                which the kubeconform schema check uses too. A node image needs the kind
-#                release that built it; kind comes from helm/kind-action, whose default
-#                follows kind, and Dependabot bumps the action.
+#                release that built it. kind (and kubectl) come from helm/kind-action,
+#                pinned to an exact release in ci.yaml that Dependabot bumps; its defaults
+#                follow kind.
 #   kubeconform  The schema validator.
 #   calico       The Calico release whose manifest the NetworkPolicy job installs.
 
