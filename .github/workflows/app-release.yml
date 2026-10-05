@@ -1,0 +1,195 @@
+name: Follow app release
+
+# Keeps the chart's default image on par with AnsibleForms. When the app releases, its
+# release workflow sends an app-release repository_dispatch here with the tag. This
+# workflow finds the chart line of that major version (main for the current major,
+# release/<major>.x for a maintenance line), moves the default image, appVersion and the
+# Artifact Hub images annotation to the release, bumps the chart's patch version, adds a
+# changelog entry, regenerates VALUES.md and opens a pull request with auto-merge on.
+#
+# Nothing is published from here. The pull request goes through the full CI like any
+# other, merges itself only once CI passed is green, and the release workflow then
+# publishes the chart as usual. A failing CI leaves the pull request open.
+#
+# A new major version is not bumped: it needs real chart work, so an issue is opened
+# instead. Run it by hand ("Run workflow") with a version to catch up on a release.
+#
+# The pull request is opened with a token of the ansibleforms-release GitHub App rather
+# than GITHUB_TOKEN, because a pull request opened with GITHUB_TOKEN starts no workflows
+# and would never get its checks.
+
+on:
+  repository_dispatch:
+    types: [app-release]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'AnsibleForms version to move the chart to, e.g. 7.1.3'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: follow-app-release
+  cancel-in-progress: false
+
+env:
+  HELM_DOCS_VERSION: "1.14.2"
+
+jobs:
+  bump:
+    name: Open the image bump
+    runs-on: ubuntu-latest
+    steps:
+      - name: Work out the version and the chart line
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RAW: ${{ github.event.client_payload.tag || inputs.version }}
+        run: |
+          set -euo pipefail
+          version="${RAW#v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'$RAW' is not a release version (x.y.z)."; exit 1
+          fi
+          major="${version%%.*}"
+          current="$(gh api "repos/${GITHUB_REPOSITORY}/contents/charts/ansibleforms/Chart.yaml" \
+            -H 'Accept: application/vnd.github.raw' | awk '/^version:/ {split($2, v, "."); print v[1]}')"
+          base=""
+          if [ "$major" = "$current" ]; then
+            base=main
+          elif gh api "repos/${GITHUB_REPOSITORY}/branches/release/${major}.x" >/dev/null 2>&1; then
+            base="release/${major}.x"
+          fi
+          echo "AnsibleForms $version, chart major on main is $current, line: ${base:-none}"
+          {
+            echo "version=$version"
+            echo "major=$major"
+            echo "current=$current"
+            echo "base=$base"
+          } >> "$GITHUB_OUTPUT"
+
+      # A new major needs the chart moved by hand (removed settings, new defaults). Say so
+      # once, as an issue, instead of opening a bump that would only break things.
+      - name: A new major version needs the chart moved by hand
+        if: steps.target.outputs.base == '' && fromJSON(steps.target.outputs.major) > fromJSON(steps.target.outputs.current)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.target.outputs.version }}
+          MAJOR: ${{ steps.target.outputs.major }}
+          CURRENT: ${{ steps.target.outputs.current }}
+        run: |
+          set -euo pipefail
+          title="Move the chart to AnsibleForms ${MAJOR}"
+          if [ -n "$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number --jq '.[].number')" ]; then
+            echo "The issue for AnsibleForms ${MAJOR} is already open."; exit 0
+          fi
+          gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body "AnsibleForms ${VERSION} was released, a new major version. The chart is not bumped automatically across a major: read the app's upgrade notes, move the chart (removed settings, new defaults), start a release/${CURRENT}.x line if ${CURRENT}.x keeps getting fixes, and release a new major of the chart."
+
+      - name: Nothing to follow
+        if: steps.target.outputs.base == '' && fromJSON(steps.target.outputs.major) <= fromJSON(steps.target.outputs.current)
+        run: echo "::notice::No chart line follows AnsibleForms ${{ steps.target.outputs.major }} any more, nothing to bump."
+
+      - uses: actions/create-github-app-token@v3
+        id: app
+        if: steps.target.outputs.base != ''
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: helm-charts
+
+      - uses: actions/checkout@v7
+        if: steps.target.outputs.base != ''
+        with:
+          ref: ${{ steps.target.outputs.base }}
+          token: ${{ steps.app.outputs.token }}
+
+      - name: Move the default image
+        id: bump
+        if: steps.target.outputs.base != ''
+        env:
+          VERSION: ${{ steps.target.outputs.version }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re, sys
+          version = os.environ["VERSION"]
+          key = lambda s: tuple(int(x) for x in s.split("."))
+          out = open(os.environ["GITHUB_OUTPUT"], "a")
+
+          values_path = "charts/ansibleforms/values.yaml"
+          values = open(values_path).read()
+          image = re.search(r"(image: ghcr\.io/ansibleforms/ansibleforms:)(\d+\.\d+\.\d+)", values)
+          if not image:
+              sys.exit("::error::No ghcr.io/ansibleforms/ansibleforms:x.y.z image in values.yaml.")
+          now = image.group(2)
+          if key(version) <= key(now):
+              print(f"The chart already defaults to {now}, nothing to do for {version}.")
+              out.write("skip=true\n")
+              sys.exit(0)
+          open(values_path, "w").write(values.replace(image.group(0), image.group(1) + version, 1))
+
+          chart_path = "charts/ansibleforms/Chart.yaml"
+          chart = open(chart_path).read()
+          old = re.search(r"(?m)^version: (\d+)\.(\d+)\.(\d+)$", chart)
+          new = f"{old.group(1)}.{old.group(2)}.{int(old.group(3)) + 1}"
+          chart = chart.replace(old.group(0), f"version: {new}", 1)
+          chart = re.sub(r'(?m)^appVersion: "?[0-9.]+"?$', f'appVersion: "{version}"', chart, count=1)
+          chart = chart.replace(f"image: ghcr.io/ansibleforms/ansibleforms:{now}",
+                                f"image: ghcr.io/ansibleforms/ansibleforms:{version}")
+          open(chart_path, "w").write(chart)
+
+          log_path = "charts/ansibleforms/CHANGELOG.md"
+          log = open(log_path).read()
+          entry = (f"## {new}\n\nAnsibleForms {version}.\n\n### Changed\n\n"
+                   f"- **The default image is AnsibleForms {version}**,\n"
+                   f"  `ghcr.io/ansibleforms/ansibleforms:{version}`, and `appVersion` follows. See the\n"
+                   f"  [{version} release notes](https://github.com/ansibleforms/ansibleforms/releases/tag/{version}).\n\n")
+          log = log.replace("# Changelog\n\n", "# Changelog\n\n" + entry, 1)
+          open(log_path, "w").write(log)
+
+          print(f"Image {now} -> {version}, chart {old.group(0)[9:]} -> {new}")
+          out.write(f"skip=false\nchart={new}\nfrom={now}\n")
+          PY
+
+      - name: Regenerate VALUES.md
+        if: steps.target.outputs.base != '' && steps.bump.outputs.skip == 'false'
+        run: |
+          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/r" -w /r \
+            "jnorwood/helm-docs:v${HELM_DOCS_VERSION}" \
+            --chart-search-root charts --template-files VALUES.md.gotmpl \
+            --output-file VALUES.md --ignore-non-descriptions
+
+      - name: Open the pull request with auto-merge
+        if: steps.target.outputs.base != '' && steps.bump.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+          BASE: ${{ steps.target.outputs.base }}
+          VERSION: ${{ steps.target.outputs.version }}
+          CHART: ${{ steps.bump.outputs.chart }}
+          FROM: ${{ steps.bump.outputs.from }}
+        run: |
+          set -euo pipefail
+          branch="build/ansibleforms-${VERSION}"
+          if [ -n "$(gh pr list --head "$branch" --state open --json number --jq '.[].number')" ]; then
+            echo "A pull request for $branch is already open."; exit 0
+          fi
+          user_id="$(gh api "/users/${SLUG}[bot]" --jq .id)"
+          git config user.name "${SLUG}[bot]"
+          git config user.email "${user_id}+${SLUG}[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git commit -am "build: default to AnsibleForms ${VERSION}" \
+            -m "Move the default image, appVersion and the Artifact Hub images annotation from ${FROM} to ${VERSION}. Chart ${CHART}."
+          git push --force origin "$branch"
+          url="$(gh pr create --base "$BASE" --head "$branch" \
+            --title "build: default to AnsibleForms ${VERSION}" \
+            --body "AnsibleForms [${VERSION}](https://github.com/ansibleforms/ansibleforms/releases/tag/${VERSION}) was released. This moves the chart's default image from \`${FROM}\` to \`${VERSION}\`, along with \`appVersion\` and the Artifact Hub images annotation, and bumps the chart to **${CHART}**, with a changelog entry and a regenerated \`VALUES.md\`.
+
+          Opened by the *Follow app release* workflow. It merges itself once **CI passed** is green, and the release workflow then publishes chart ${CHART}. If CI fails, it stays open for a look.")"
+          echo "Opened $url"
+          gh pr merge "$url" --auto --squash

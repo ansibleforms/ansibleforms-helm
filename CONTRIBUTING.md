@@ -138,6 +138,17 @@ been released. Both would merge green and publish nothing, leaving the change on
 packaged chart, to CI, to `test/` or to the documentation, need no bump; the chart's
 `ci/` is in its `.helmignore`, and `test/` sits outside the chart altogether.
 
+## Following app releases
+
+The chart's default image follows AnsibleForms by itself. An app release sends an
+`app-release` dispatch here, and the *Follow app release* workflow opens a pull request on
+the line of that major (`main`, or `release/<major>.x`) that moves the image, `appVersion`
+and the Artifact Hub images annotation, bumps the chart's patch version and adds a
+changelog entry. It merges itself once **CI passed** is green, and the release workflow
+publishes the chart. A new major version opens an issue instead, because moving the chart
+across a major takes real work. To catch up on a release by hand: Actions → *Follow app
+release* → Run workflow, with the version.
+
 ## The 6.x maintenance line
 
 `main` is the chart for AnsibleForms 7. Fixes for the 6 line (AnsibleForms 6.5) go to
