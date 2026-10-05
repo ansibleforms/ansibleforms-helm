@@ -1,5 +1,20 @@
 # Changelog
 
+## 6.3.6
+
+The chart repository is served from ansibleforms.com.
+
+### Changed
+
+- **`https://ansibleforms.com/helm-charts/` is the chart repository's address**:
+
+  ```bash
+  helm repo add ansibleforms https://ansibleforms.com/helm-charts/
+  ```
+
+  `https://ansibleforms.github.io/helm-charts/` serves the same charts and keeps working,
+  so nothing has to change for a repository added there.
+
 ## 6.3.5
 
 Ready for Artifact Hub.
