@@ -1,5 +1,43 @@
 # Changelog
 
+## 7.0.0
+
+AnsibleForms 7.
+
+### Changed
+
+- **The default image is AnsibleForms 7, `ghcr.io/ansibleforms/ansibleforms:7.0.0`**
+  (`appVersion` follows). 7 removes everything 6.x marked as deprecated; read
+  [Upgrading to 7](https://ansibleforms.com/upgrade-7) before you upgrade.
+- **`forms.configMap` mounts `config.yaml` instead of `forms.yaml`.** The defaults are now
+  `key: config.yaml` and `mountPath: /app/dist/persistent/config.yaml`. 7 reads
+  categories, roles and constants from `config.yaml` and the forms only from the forms
+  folder: ship them through `forms.extraFormsConfigMap`, one or more forms per key. A
+  `forms:` section in `config.yaml` is an error in 7.
+- **`ALLOW_ENV_EDIT: 0` is set by default.** The settings pages show every environment
+  variable read-only instead of saving changes to a `.env` file on the volume, which would
+  override these values on every restart. Set it to `1` under `applications.server.env` to
+  allow edits again.
+
+### Removed
+
+- **`files/schema.sql`, and the schema in the bundled MySQL's init script.** AnsibleForms 7
+  creates its schema on an empty database by itself, and migrates an existing one forward.
+  A database you run yourself needs nothing applied beforehand any more.
+
+### Upgrading from 6.x
+
+1. Be on AnsibleForms 6.5 first (chart 6.3.x), and take a backup (**Settings > Backups**).
+2. Follow [Upgrading to 7](https://ansibleforms.com/upgrade-7) while still on 6.5: rename
+   `forms.yaml` to `config.yaml`, move every form into a file of its own, replace `table`
+   fields, and drop the removed environment variables.
+3. If you mount the base configuration from a ConfigMap, rename its key to `config.yaml`
+   and point `forms.configMap.key` at it (or take the new defaults). Move the forms into
+   the ConfigMap behind `forms.extraFormsConfigMap`.
+4. Upgrade the chart. On its first start 7 migrates the database; nothing else is needed.
+
+To stay on 6, pin the chart: `--version "~6"`.
+
 ## 6.3.7
 
 One address for the chart repository.

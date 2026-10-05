@@ -75,8 +75,7 @@ Checking it works
 Database
 
   mysql.enabled is false, so this release talks to {{ include "ansibleforms.mysql.host" . }} and
-  the chart deployed no database. AnsibleForms migrates an existing schema
-  forward but does not create one, so if you have not already, apply
-  files/schema.sql to that server once. Until you do, the pages load and every
-  query behind them fails.
+  the chart deployed no database. AnsibleForms creates its schema there on the
+  first start, as long as the database is empty and the user may create tables
+  (and the AnsibleForms database, if it does not exist yet).
 {{- end }}

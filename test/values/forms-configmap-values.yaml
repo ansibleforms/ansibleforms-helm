@@ -1,5 +1,5 @@
 ---
-# Forms, extra forms and custom javascript supplied as external ConfigMaps.
+# config.yaml, the form files and custom javascript supplied as external ConfigMaps.
 # Render only, since the referenced ConfigMaps are managed outside the chart.
 applications:
   mysql:
@@ -19,9 +19,9 @@ ingress:
 forms:
   configMap:
     enabled: true
-    key: forms.yaml
-    mountPath: /app/dist/persistent/forms.yaml
-    name: ansibleforms-forms
+    key: config.yaml
+    mountPath: /app/dist/persistent/config.yaml
+    name: ansibleforms-config
   customJs:
     enabled: true
     key: custom.js

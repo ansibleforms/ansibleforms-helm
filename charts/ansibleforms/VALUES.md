@@ -15,9 +15,10 @@ values.yaml itself and in the [README](README.md).
 |-----|------|---------|-------------|
 | applications.mysql.password | string | `"<ENTER_PASSWORD_HERE>"` | Database password. Leave out with secrets.existingSecret or secrets.generate. |
 | applications.mysql.user | string | `"root"` | Database user. |
-| applications.server.env | object | `{"ADMIN_PASSWORD":"<ENTER_PASSWORD_HERE>","ADMIN_USERNAME":"admin","ENCRYPTION_SECRET":"<ENTER_SECRET_HERE>","HTTPS":0}` | Environment variables for AnsibleForms. Any application setting can be added here. |
+| applications.server.env | object | `{"ADMIN_PASSWORD":"<ENTER_PASSWORD_HERE>","ADMIN_USERNAME":"admin","ALLOW_ENV_EDIT":0,"ENCRYPTION_SECRET":"<ENTER_SECRET_HERE>","HTTPS":0}` | Environment variables for AnsibleForms. Any application setting can be added here. |
 | applications.server.env.ADMIN_PASSWORD | string | `"<ENTER_PASSWORD_HERE>"` | Password of the local admin user created on first start. |
 | applications.server.env.ADMIN_USERNAME | string | `"admin"` | Name of the local admin user created on first start. |
+| applications.server.env.ALLOW_ENV_EDIT | int | `0` | 0 makes the settings pages read-only for environment variables, so these values stay the only source. |
 | applications.server.env.ENCRYPTION_SECRET | string | `"<ENTER_SECRET_HERE>"` | Key that encrypts stored credentials. Never change it once data exists. |
 | applications.server.env.HTTPS | int | `0` | 1 serves HTTPS on 443 with the built-in self-signed certificate, 0 serves HTTP on 80. |
 | commonAnnotations | object | `{}` | Annotations added to every object and both pods. |
@@ -49,7 +50,7 @@ values.yaml itself and in the [README](README.md).
 | containers.server.bindPrivilegedPorts | bool | `true` | Let the non-root server bind ports 80 and 443 (sets net.ipv4.ip_unprivileged_port_start). |
 | containers.server.extraEnv | list | `[]` | Extra env entries for the server, written after the generated ones so they win. |
 | containers.server.extraEnvFrom | list | `[]` | ConfigMaps or Secrets injected as environment into the server. |
-| containers.server.image | string | `"ghcr.io/ansibleforms/ansibleforms:6.5.2"` | AnsibleForms image. |
+| containers.server.image | string | `"ghcr.io/ansibleforms/ansibleforms:7.0.0"` | AnsibleForms image. |
 | containers.server.imagePullSecrets | list | `[]` | Pull secrets for the AnsibleForms image only; overrides imagePullSecrets. |
 | containers.server.initContainers | list | `[]` | Init containers for the server pod. |
 | containers.server.liveness | object | `{"failureThreshold":3,"initialDelaySeconds":15,"path":"/","periodSeconds":15,"timeoutSeconds":15}` | Server liveness probe (HTTP). |
@@ -68,17 +69,17 @@ values.yaml itself and in the [README](README.md).
 | containers.server.tolerations | list | `[]` | Server pod tolerations. |
 | containers.server.topologySpreadConstraints | list | `[]` | Server pod topology spread constraints. |
 | containers.server.tty | bool | `false` | Allocate a TTY for the server container. |
-| forms.configMap.enabled | bool | `false` | Mount forms.yaml from a ConfigMap. |
-| forms.configMap.key | string | `"forms.yaml"` | Key in the ConfigMap that holds forms.yaml. |
-| forms.configMap.mountPath | string | `"/app/dist/persistent/forms.yaml"` | Where forms.yaml is mounted. |
-| forms.configMap.name | string | `""` | Name of the ConfigMap holding forms.yaml. |
+| forms.configMap.enabled | bool | `false` | Mount config.yaml (categories, roles, constants) from a ConfigMap. |
+| forms.configMap.key | string | `"config.yaml"` | Key in the ConfigMap that holds config.yaml. |
+| forms.configMap.mountPath | string | `"/app/dist/persistent/config.yaml"` | Where config.yaml is mounted. |
+| forms.configMap.name | string | `""` | Name of the ConfigMap holding config.yaml. |
 | forms.customJs.enabled | bool | `false` | Mount custom.js from a ConfigMap. |
 | forms.customJs.key | string | `"custom.js"` | Key in the ConfigMap that holds custom.js. |
 | forms.customJs.mountPath | string | `"/app/dist/src/functions/custom.js"` | Where custom.js is mounted. |
 | forms.customJs.name | string | `""` | Name of the ConfigMap holding custom.js. |
-| forms.extraFormsConfigMap.enabled | bool | `false` | Mount extra form definitions from a ConfigMap. |
-| forms.extraFormsConfigMap.mountPath | string | `"/app/dist/persistent/forms"` | Folder the extra form definitions are mounted in. |
-| forms.extraFormsConfigMap.name | string | `""` | Name of the ConfigMap holding the extra form definitions. |
+| forms.extraFormsConfigMap.enabled | bool | `false` | Mount the form files (one or more forms per key) from a ConfigMap. |
+| forms.extraFormsConfigMap.mountPath | string | `"/app/dist/persistent/forms"` | The forms folder they are mounted as. |
+| forms.extraFormsConfigMap.name | string | `""` | Name of the ConfigMap holding the form files. |
 | fullnameOverride | string | `""` | Replaces the release name as the prefix of every resource name. |
 | imagePullSecrets | list | `[]` | Pull secrets for both images; they must already exist in the namespace. |
 | ingress.annotations | object | `{"nginx.ingress.kubernetes.io/rewrite-target":"/","nginx.ingress.kubernetes.io/ssl-redirect":"true"}` | Annotations on the Ingress. |
