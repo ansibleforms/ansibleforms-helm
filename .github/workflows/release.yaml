@@ -2,8 +2,9 @@ name: Release chart
 
 # Publishing is driven by the version field in Chart.yaml. Bump it in a pull
 # request, merge to main, and this workflow tags the release, attaches the
-# packaged chart, pushes it to GHCR as an OCI artifact and refreshes the Helm
-# repository index served from GitHub Pages.
+# packaged chart, pushes it to GHCR as an OCI artifact, refreshes the Helm
+# repository index served from this repository's GitHub Pages and asks
+# ansibleforms.com to rebuild, which serves the same charts at /helm-charts/.
 #
 # It waits for CI rather than running beside it. Triggered on push, the two
 # raced: the first release went out while the tests were still going, so a red
@@ -205,3 +206,44 @@ jobs:
       - uses: actions/deploy-pages@v5
         if: steps.pages.outcome == 'success'
         id: deploy
+
+  # ansibleforms.com/helm-charts/ is the main address of the chart repository. The website
+  # assembles it from the releases here at build time, so a release tells it to rebuild.
+  # GITHUB_TOKEN cannot start a workflow in another repository, so the token comes from the
+  # ansibleforms-release GitHub App, asked for the website repository only. Until the App
+  # is installed here and its key is stored as RELEASE_APP_PRIVATE_KEY, this job only says
+  # so; the website's nightly build picks the release up within a day either way.
+  website:
+    name: Rebuild ansibleforms.com
+    needs: release
+    if: needs.release.outputs.released == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Is the release App configured?
+        id: app_configured
+        env:
+          KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+        run: |
+          if [ -n "$KEY" ] && [ -n "${{ vars.RELEASE_APP_ID }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::RELEASE_APP_ID or RELEASE_APP_PRIVATE_KEY is not set - ansibleforms.com picks this release up on its nightly build"
+          fi
+
+      - uses: actions/create-github-app-token@v3
+        id: app
+        if: steps.app_configured.outputs.enabled == 'true'
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: website
+
+      - name: Send chart-release to ansibleforms/website
+        if: steps.app_configured.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          gh api repos/ansibleforms/website/dispatches -f event_type=chart-release
+          echo "ansibleforms.com rebuilds with the new chart"

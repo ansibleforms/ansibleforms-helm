@@ -14,7 +14,7 @@ playbooks and AWX/AAP templates into self-service forms.
 From the chart repository:
 
 ```bash
-helm repo add ansibleforms https://ansibleforms.github.io/helm-charts/
+helm repo add ansibleforms https://ansibleforms.com/helm-charts/
 helm repo update
 helm show values ansibleforms/ansibleforms > my_values.yaml
 ```

@@ -20,7 +20,7 @@ Every value, its type, default and a one-line description: [VALUES.md](VALUES.md
 From the chart repository:
 
 ```bash
-helm repo add ansibleforms https://ansibleforms.github.io/helm-charts/
+helm repo add ansibleforms https://ansibleforms.com/helm-charts/
 helm repo update
 helm show values ansibleforms/ansibleforms > my_values.yaml
 # edit my_values.yaml, then
@@ -42,13 +42,15 @@ Pin the chart version in anything that runs unattended, for example
 `--version 6.2.2`, so a new release never lands on its own. Charts up to and including 6.2.9
 are in the OCI registry at `oci://ghcr.io/ansibleguy76/charts/ansibleforms` instead.
 
-The repository was called `ansibleforms-helm` up to chart 6.3.0, and the chart repository
-was served from `https://ansibleforms.github.io/ansibleforms-helm/`. That address no longer
-answers. If you added it under that address, point it at the new one:
+The chart repository lives at `https://ansibleforms.com/helm-charts/`. The address
+`https://ansibleforms.github.io/helm-charts/` serves the same charts and keeps working.
+Up to chart 6.3.0 the repository was called `ansibleforms-helm` and served from
+`https://ansibleforms.github.io/ansibleforms-helm/`, which no longer answers. If you added it
+under that address, point it at the new one:
 
 ```bash
 helm repo remove ansibleforms
-helm repo add ansibleforms https://ansibleforms.github.io/helm-charts/
+helm repo add ansibleforms https://ansibleforms.com/helm-charts/
 ```
 
 ## Usage
