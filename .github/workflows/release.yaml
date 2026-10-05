@@ -58,7 +58,7 @@ jobs:
       - name: Read chart version
         id: chart
         run: |
-          version="$(helm show chart . | awk '/^version:/ {print $2}')"
+          version="$(helm show chart charts/ansibleforms | awk '/^version:/ {print $2}')"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Chart version is $version"
 
@@ -77,7 +77,7 @@ jobs:
 
       - name: Package
         if: steps.check.outputs.released == 'true'
-        run: helm package . --destination dist
+        run: helm package charts/ansibleforms --destination dist
 
       - name: Create GitHub release
         if: steps.check.outputs.released == 'true'

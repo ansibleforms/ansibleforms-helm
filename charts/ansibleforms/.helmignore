@@ -11,7 +11,3 @@
 *.orig
 *~
 ci/
-test/
-ct.yaml
-.yamllint.yaml
-CONTRIBUTING.md

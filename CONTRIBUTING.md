@@ -7,15 +7,16 @@ Everything CI does can be run before pushing:
 ```bash
 pip install yamllint
 yamllint --strict .
-helm lint . --strict
 
-for f in ci/*-values.yaml test/values/*-values.yaml; do
+cd charts/ansibleforms
+helm lint . --strict
+for f in ci/*-values.yaml ../../test/values/*-values.yaml; do
   helm lint . --strict --values "$f"
   helm template ansibleforms . --values "$f" | kubeconform -strict -summary
 done
 ```
 
-`ci/*-values.yaml` are the scenarios `ct` installs on a kind cluster.
+The chart is in `charts/ansibleforms`. Its `ci/*-values.yaml` are the scenarios `ct` installs on a kind cluster.
 `test/values/*-values.yaml` are mostly render-only, for combinations that cannot
 be installed unattended or that only exist to prove a manifest is shaped right.
 Some of them are driven by hand from the workflow: the two `ingress-*` files are
@@ -38,7 +39,7 @@ that a few assertions that rendering alone would not make:
   is immutable
 - the MySQL probes exist and none of them carries a credential
 - the chart version moved, if anything under `Chart.yaml`, `values.yaml`,
-  `templates/` or `files/` did
+  `templates/` or `files/` of `charts/ansibleforms` did
 - the two security context combinations that cannot work are still refused, and
   the message still names the value to change
 
@@ -88,14 +89,14 @@ controller can route.
 To try a real install:
 
 ```bash
-helm upgrade --install test . \
+helm upgrade --install test charts/ansibleforms \
   --namespace ansibleforms-test --create-namespace \
-  --values ci/default-values.yaml --wait
+  --values charts/ansibleforms/ci/default-values.yaml --wait
 ```
 
 ## Cutting a release
 
-Releases are driven by the `version` field in `Chart.yaml`. Bump it in a pull
+Releases are driven by the `version` field in `charts/ansibleforms/Chart.yaml`. Bump it in a pull
 request, merge to `main`, and the release workflow tags the version, attaches
 the packaged chart to a GitHub release, pushes it to GHCR as an OCI artifact and
 rebuilds the Helm repository index published on GitHub Pages.
@@ -111,15 +112,15 @@ tracks the AnsibleForms release the default image points at. They are no longer
 kept in lockstep: a fix to a template does not need a new application release.
 
 Anything that renames a resource, removes a value or forces an existing
-Deployment to be recreated is a major bump, and belongs in `CHANGELOG.md` with
+Deployment to be recreated is a major bump, and belongs in `charts/ansibleforms/CHANGELOG.md` with
 the steps an operator has to take.
 
 CI refuses a pull request that changes `Chart.yaml`, `values.yaml`, `templates/`
 or `files/` without moving the version, and refuses a version that has already
 been released. Both would merge green and publish nothing, leaving the change on
 `main` until some later release dragged it along. Changes that do not reach the
-packaged chart, to CI, to `test/` or to the documentation, need no bump; `ci/`
-and `test/` are in `.helmignore`.
+packaged chart, to CI, to `test/` or to the documentation, need no bump; the chart's
+`ci/` is in its `.helmignore`, and `test/` sits outside the chart altogether.
 
 ## Repository settings this depends on
 
