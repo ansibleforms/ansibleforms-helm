@@ -303,7 +303,7 @@ containers:
 
   server:
     # -- AnsibleForms image.
-    image: ghcr.io/ansibleforms/ansibleforms:7.1.3
+    image: ghcr.io/ansibleforms/ansibleforms:7.1.4
     # -- Server replicas. Keep 1: the pods share one volume and one scheduler.
     replicas: 1
 
