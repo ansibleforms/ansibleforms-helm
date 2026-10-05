@@ -1,5 +1,20 @@
 # Changelog
 
+## 6.3.7
+
+One address for the chart repository.
+
+### Removed
+
+- **`https://ansibleforms.github.io/helm-charts/` no longer serves the charts.**
+  `https://ansibleforms.com/helm-charts/` does, with every version. A repository added
+  under the old address gets no new versions; re-add it:
+
+  ```bash
+  helm repo remove ansibleforms
+  helm repo add ansibleforms https://ansibleforms.com/helm-charts/
+  ```
+
 ## 6.3.6
 
 The chart repository is served from ansibleforms.com.

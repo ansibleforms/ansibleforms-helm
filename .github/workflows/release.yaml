@@ -2,9 +2,9 @@ name: Release chart
 
 # Publishing is driven by the version field in Chart.yaml. Bump it in a pull
 # request, merge to main, and this workflow tags the release, attaches the
-# packaged chart, pushes it to GHCR as an OCI artifact, refreshes the Helm
-# repository index served from this repository's GitHub Pages and asks
-# ansibleforms.com to rebuild, which serves the same charts at /helm-charts/.
+# packaged chart, pushes it to GHCR as an OCI artifact and asks ansibleforms.com
+# to rebuild. The website serves the Helm repository at /helm-charts/, indexed
+# from the releases here; this repository has no Pages site of its own.
 #
 # It waits for CI rather than running beside it. Triggered on push, the two
 # raced: the first release went out while the tests were still going, so a red
@@ -107,112 +107,12 @@ jobs:
             --password '${{ github.token }}'
           helm push "dist/ansibleforms-${VERSION}.tgz" "oci://ghcr.io/${owner}/charts"
 
-  pages:
-    name: Publish Helm repository
-    needs: release
-    # Also runs on a manual dispatch even when there is no new version, so the
-    # index can be rebuilt on its own. Without that, a release whose Pages job
-    # failed (say, because the Pages source had not been set yet) could never be
-    # republished: the retry would find the tag already there, decide there was
-    # nothing to release, and skip this job until the next version bump.
-    if: needs.release.outputs.released == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-
-      - uses: azure/setup-helm@v5
-        with:
-          version: v3.16.2
-
-      # Do not bother with the action's `enablement` flag. Creating a Pages site
-      # needs repository administration rights, which the automatic token does
-      # not have however many permissions the job asks for, and it fails with
-      # "Resource not accessible by integration". Turning Pages on is a manual
-      # step for whoever owns the repository, once.
-      #
-      # Until then this job steps aside instead of failing the release: the
-      # GitHub release and the OCI artifact are published either way, and a
-      # permanently red pipeline just teaches everyone to ignore it.
-      - uses: actions/configure-pages@v5
-        id: pages
-        continue-on-error: true
-
-      - name: Explain what is missing
-        if: steps.pages.outcome == 'failure'
-        run: |
-          {
-            echo "### Helm repository not published"
-            echo
-            echo "The chart is released and pushed to GHCR, but the Helm"
-            echo "repository index was skipped because GitHub Pages is not"
-            echo "set up on this repository."
-            echo
-            echo "To enable it, an administrator has to open **Settings >"
-            echo "Pages** once and set the source to **GitHub Actions**, then"
-            echo "re-run this workflow. Nothing else is needed, and no secret"
-            echo "is involved."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      # The index is rebuilt from every published release rather than kept as
-      # state in a branch, so the site can always be regenerated from scratch.
-      - name: Rebuild the repository index
-        if: steps.pages.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PAGE_URL: ${{ steps.pages.outputs.base_url }}
-        run: |
-          mkdir -p public
-          for tag in $(gh release list --limit 200 --json tagName --jq '.[].tagName'); do
-            gh release download "$tag" --dir public --pattern '*.tgz' --clobber || true
-          done
-          ls -la public
-          helm repo index public --url "${PAGE_URL}/"
-          # Artifact Hub reads its repository metadata from the root of the chart repository
-          cp artifacthub-repo.yml public/
-
-      - name: Write a landing page
-        if: steps.pages.outcome == 'success'
-        env:
-          PAGE_URL: ${{ steps.pages.outputs.base_url }}
-        run: |
-          cat > public/index.html <<EOF
-          <!doctype html>
-          <meta charset="utf-8">
-          <title>AnsibleForms Helm charts</title>
-          <h1>AnsibleForms Helm charts</h1>
-          <p>Add this repository with:</p>
-          <pre>helm repo add ansibleforms ${PAGE_URL}/
-          helm repo update
-          helm search repo ansibleforms</pre>
-          <p>Or pull the chart straight from the OCI registry:</p>
-          <pre>helm pull oci://ghcr.io/${{ github.repository_owner }}/charts/ansibleforms</pre>
-          <p><a href="index.yaml">index.yaml</a></p>
-          EOF
-
-      - uses: actions/upload-pages-artifact@v5
-        if: steps.pages.outcome == 'success'
-        with:
-          path: public
-
-      - uses: actions/deploy-pages@v5
-        if: steps.pages.outcome == 'success'
-        id: deploy
-
-  # ansibleforms.com/helm-charts/ is the main address of the chart repository. The website
-  # assembles it from the releases here at build time, so a release tells it to rebuild.
-  # GITHUB_TOKEN cannot start a workflow in another repository, so the token comes from the
-  # ansibleforms-release GitHub App, asked for the website repository only. Until the App
-  # is installed here and its key is stored as RELEASE_APP_PRIVATE_KEY, this job only says
-  # so; the website's nightly build picks the release up within a day either way.
+  # ansibleforms.com/helm-charts/ is the chart repository. The website assembles it from
+  # the releases here at build time, so a release tells it to rebuild. GITHUB_TOKEN cannot
+  # start a workflow in another repository, so the token comes from the ansibleforms-release
+  # GitHub App, asked for the website repository only. Should the App or its key be
+  # missing, this job only says so; the website's nightly build picks the release up within
+  # a day either way. Run this workflow by hand to rebuild the site without a release.
   website:
     name: Rebuild ansibleforms.com
     needs: release
