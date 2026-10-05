@@ -138,6 +138,20 @@ been released. Both would merge green and publish nothing, leaving the change on
 packaged chart, to CI, to `test/` or to the documentation, need no bump; the chart's
 `ci/` is in its `.helmignore`, and `test/` sits outside the chart altogether.
 
+## The 6.x maintenance line
+
+`main` is the chart for AnsibleForms 7. Fixes for the 6 line (AnsibleForms 6.5) go to
+`release/6.x`, which started from chart 6.3.7: branch from it, open the pull request
+against it, and bump the version within 6.x (6.3.8, ...). The same rules as on `main`
+apply: a pull request, squash merges, and Lint and render green.
+
+The release workflow publishes both lines. A 6.x release goes to the same chart
+repository and OCI registry, and is not marked as the latest GitHub release while a
+higher version exists. CI's upgrade test starts from the newest published chart of the
+branch's own major, so a 6.x pull request upgrades a 6.x release.
+
+Users stay on 6 by pinning the chart: `--version "~6"`.
+
 ## Repository settings this depends on
 
 The automatic `GITHUB_TOKEN` covers the GitHub release and the push to GHCR.
