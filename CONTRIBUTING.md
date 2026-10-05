@@ -168,7 +168,7 @@ Users stay on 6 by pinning the chart: `--version "~6"`.
 The automatic `GITHUB_TOKEN` covers the GitHub release and the push to GHCR.
 
 The website rebuild needs the `ansibleforms-release` GitHub App installed on this
-repository, the App's ID as the `RELEASE_APP_ID` repository variable and its private key as
+repository, the App's client ID as the `RELEASE_APP_CLIENT_ID` repository variable and its private key as
 the `RELEASE_APP_PRIVATE_KEY` secret. Without them the release and the OCI artifact still go
 out, the rebuild job says so in its run summary, and ansibleforms.com picks the release up
 on its nightly build.
