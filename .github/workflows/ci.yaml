@@ -449,7 +449,9 @@ jobs:
           PY
 
       # The Kubernetes, kubeconform and Calico versions live in test/versions/Dockerfile,
-      # where Dependabot can bump them.
+      # where Dependabot can bump them. kind and kubectl come with helm/kind-action, pinned
+      # to an exact release (the floating v1 tag lagged a kind release behind) so that
+      # Dependabot moves it.
       - name: Read the pinned versions
         id: versions
         working-directory: .
@@ -533,7 +535,9 @@ jobs:
       - uses: helm/chart-testing-action@v2
 
       # The Kubernetes, kubeconform and Calico versions live in test/versions/Dockerfile,
-      # where Dependabot can bump them.
+      # where Dependabot can bump them. kind and kubectl come with helm/kind-action, pinned
+      # to an exact release (the floating v1 tag lagged a kind release behind) so that
+      # Dependabot moves it.
       - name: Read the pinned versions
         id: versions
         working-directory: .
@@ -551,7 +555,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "kind node $node, kubeconform $(from kubeconform), calico ${calico##*:}"
 
-      - uses: helm/kind-action@v1
+      - uses: helm/kind-action@v1.15.0
         with:
           node_image: ${{ steps.versions.outputs.kind_node }}
 
@@ -821,7 +825,9 @@ jobs:
           version: v3.16.2
 
       # The Kubernetes, kubeconform and Calico versions live in test/versions/Dockerfile,
-      # where Dependabot can bump them.
+      # where Dependabot can bump them. kind and kubectl come with helm/kind-action, pinned
+      # to an exact release (the floating v1 tag lagged a kind release behind) so that
+      # Dependabot moves it.
       - name: Read the pinned versions
         id: versions
         working-directory: .
@@ -839,7 +845,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "kind node $node, kubeconform $(from kubeconform), calico ${calico##*:}"
 
-      - uses: helm/kind-action@v1
+      - uses: helm/kind-action@v1.15.0
         with:
           node_image: ${{ steps.versions.outputs.kind_node }}
 
@@ -1010,7 +1016,9 @@ jobs:
           version: v3.16.2
 
       # The Kubernetes, kubeconform and Calico versions live in test/versions/Dockerfile,
-      # where Dependabot can bump them.
+      # where Dependabot can bump them. kind and kubectl come with helm/kind-action, pinned
+      # to an exact release (the floating v1 tag lagged a kind release behind) so that
+      # Dependabot moves it.
       - name: Read the pinned versions
         id: versions
         working-directory: .
@@ -1028,7 +1036,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "kind node $node, kubeconform $(from kubeconform), calico ${calico##*:}"
 
-      - uses: helm/kind-action@v1
+      - uses: helm/kind-action@v1.15.0
         with:
           node_image: ${{ steps.versions.outputs.kind_node }}
 
@@ -1120,7 +1128,9 @@ jobs:
           version: v3.16.2
 
       # The Kubernetes, kubeconform and Calico versions live in test/versions/Dockerfile,
-      # where Dependabot can bump them.
+      # where Dependabot can bump them. kind and kubectl come with helm/kind-action, pinned
+      # to an exact release (the floating v1 tag lagged a kind release behind) so that
+      # Dependabot moves it.
       - name: Read the pinned versions
         id: versions
         working-directory: .
@@ -1138,7 +1148,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "kind node $node, kubeconform $(from kubeconform), calico ${calico##*:}"
 
-      - uses: helm/kind-action@v1
+      - uses: helm/kind-action@v1.15.0
         with:
           node_image: ${{ steps.versions.outputs.kind_node }}
           config: test/kind/calico.yaml
