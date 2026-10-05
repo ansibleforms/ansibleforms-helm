@@ -258,7 +258,7 @@ containers:
 # ~~~~
 
   server:
-    image: ansibleguy/ansibleforms:6.2.1
+    image: ghcr.io/ansibleforms/ansibleforms:6.5.2
     replicas: 1
 
     # Accepts either "Recreate" / "RollingUpdate" or the Kubernetes shape
