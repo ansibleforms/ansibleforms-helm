@@ -12,7 +12,6 @@ permissions:
   contents: read
 
 env:
-  KUBECONFORM_VERSION: "0.6.7"
   HELM_DOCS_VERSION: "1.14.2"
 
 # The chart lives in charts/ansibleforms. Every run step starts there, so ".", ci/,
@@ -449,24 +448,40 @@ jobs:
                 f"and each one moves only for its own input.")
           PY
 
-      - name: Install kubeconform
+      # The Kubernetes, kubeconform and Calico versions live in test/versions/Dockerfile,
+      # where Dependabot can bump them. kind and kubectl come with helm/kind-action, pinned
+      # to an exact release (the floating v1 tag lagged a kind release behind) so that
+      # Dependabot moves it.
+      - name: Read the pinned versions
+        id: versions
+        working-directory: .
         run: |
-          curl -sSLo /tmp/kubeconform.tar.gz \
-            "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
-          tar -xzf /tmp/kubeconform.tar.gz -C /tmp kubeconform
-          sudo install /tmp/kubeconform /usr/local/bin/kubeconform
-          kubeconform -v
+          set -euo pipefail
+          from() { awk -v stage="$1" '$1 == "FROM" && $NF == stage {print $2}' test/versions/Dockerfile; }
+          node="$(from kind-node)"
+          kube="${node#*:v}"
+          calico="$(from calico)"
+          {
+            echo "kind_node=$node"
+            echo "kubernetes=${kube%@*}"
+            echo "kubeconform=$(from kubeconform)"
+            echo "calico=${calico##*:}"
+          } >> "$GITHUB_OUTPUT"
+          echo "kind node $node, kubeconform $(from kubeconform), calico ${calico##*:}"
 
-      # Rendering against several Kubernetes versions catches removed or renamed
-      # API versions long before anyone upgrades a cluster. The rendered output
-      # is linted too: Helm templates cannot be parsed as YAML directly, so a
-      # duplicated key only shows up once the templates have been expanded.
+      # Rendering against the pinned Kubernetes version catches removed or renamed API
+      # versions before a cluster meets them. The rendered output is linted too: Helm
+      # templates cannot be parsed as YAML directly, so a duplicated key only shows up
+      # once the templates have been expanded.
       - name: helm template and kubeconform
+        env:
+          KUBERNETES: ${{ steps.versions.outputs.kubernetes }}
+          KUBECONFORM: ${{ steps.versions.outputs.kubeconform }}
         run: |
           mkdir -p rendered
           for f in ci/*-values.yaml ../../test/values/*-values.yaml; do
             name="$(basename "$f" -values.yaml)"
-            for kube in 1.29.14 1.31.14 1.33.12 1.35.8; do
+            for kube in "$KUBERNETES"; do
               echo "::group::$name on Kubernetes $kube"
               helm template ansibleforms . \
                 --values "$f" \
@@ -478,13 +493,13 @@ jobs:
               # how a merge once turned one PVC template into two half-merged copies.
               yamllint --strict -d '{extends: default, rules: {key-duplicates: enable, line-length: disable, empty-lines: disable, indentation: disable, comments: disable, comments-indentation: disable, document-start: disable, truthy: disable, braces: disable, trailing-spaces: disable, new-line-at-end-of-file: disable, empty-values: disable}}' \
                 "rendered/${name}-${kube}.yaml"
-              kubeconform \
+              docker run --rm -v "$PWD/rendered:/rendered:ro" "$KUBECONFORM" \
                 -strict \
                 -summary \
                 -kubernetes-version "$kube" \
                 -schema-location default \
                 -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
-                "rendered/${name}-${kube}.yaml"
+                "/rendered/${name}-${kube}.yaml"
               echo "::endgroup::"
             done
           done
@@ -502,12 +517,8 @@ jobs:
   # schema, while an install is where a probe, a security context or a storage
   # default meets an actual kubelet.
   install:
-    name: Install on kind ${{ matrix.kubernetes }}
+    name: Install on kind
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        kubernetes: [v1.31.14, v1.33.12, v1.35.8]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -523,9 +534,30 @@ jobs:
 
       - uses: helm/chart-testing-action@v2
 
-      - uses: helm/kind-action@v1
+      # The Kubernetes, kubeconform and Calico versions live in test/versions/Dockerfile,
+      # where Dependabot can bump them. kind and kubectl come with helm/kind-action, pinned
+      # to an exact release (the floating v1 tag lagged a kind release behind) so that
+      # Dependabot moves it.
+      - name: Read the pinned versions
+        id: versions
+        working-directory: .
+        run: |
+          set -euo pipefail
+          from() { awk -v stage="$1" '$1 == "FROM" && $NF == stage {print $2}' test/versions/Dockerfile; }
+          node="$(from kind-node)"
+          kube="${node#*:v}"
+          calico="$(from calico)"
+          {
+            echo "kind_node=$node"
+            echo "kubernetes=${kube%@*}"
+            echo "kubeconform=$(from kubeconform)"
+            echo "calico=${calico##*:}"
+          } >> "$GITHUB_OUTPUT"
+          echo "kind node $node, kubeconform $(from kubeconform), calico ${calico##*:}"
+
+      - uses: helm/kind-action@v1.15.0
         with:
-          node_image: kindest/node:${{ matrix.kubernetes }}
+          node_image: ${{ steps.versions.outputs.kind_node }}
 
       # ct installs the chart once per ci/*-values.yaml file and waits for every
       # pod to become ready, so a broken probe or a bad default fails here.
@@ -792,9 +824,30 @@ jobs:
         with:
           version: v3.16.2
 
-      - uses: helm/kind-action@v1
+      # The Kubernetes, kubeconform and Calico versions live in test/versions/Dockerfile,
+      # where Dependabot can bump them. kind and kubectl come with helm/kind-action, pinned
+      # to an exact release (the floating v1 tag lagged a kind release behind) so that
+      # Dependabot moves it.
+      - name: Read the pinned versions
+        id: versions
+        working-directory: .
+        run: |
+          set -euo pipefail
+          from() { awk -v stage="$1" '$1 == "FROM" && $NF == stage {print $2}' test/versions/Dockerfile; }
+          node="$(from kind-node)"
+          kube="${node#*:v}"
+          calico="$(from calico)"
+          {
+            echo "kind_node=$node"
+            echo "kubernetes=${kube%@*}"
+            echo "kubeconform=$(from kubeconform)"
+            echo "calico=${calico##*:}"
+          } >> "$GITHUB_OUTPUT"
+          echo "kind node $node, kubeconform $(from kubeconform), calico ${calico##*:}"
+
+      - uses: helm/kind-action@v1.15.0
         with:
-          node_image: kindest/node:v1.33.12
+          node_image: ${{ steps.versions.outputs.kind_node }}
 
       - name: Install the published chart, put data in it, then upgrade to this one
         run: |
@@ -962,9 +1015,30 @@ jobs:
         with:
           version: v3.16.2
 
-      - uses: helm/kind-action@v1
+      # The Kubernetes, kubeconform and Calico versions live in test/versions/Dockerfile,
+      # where Dependabot can bump them. kind and kubectl come with helm/kind-action, pinned
+      # to an exact release (the floating v1 tag lagged a kind release behind) so that
+      # Dependabot moves it.
+      - name: Read the pinned versions
+        id: versions
+        working-directory: .
+        run: |
+          set -euo pipefail
+          from() { awk -v stage="$1" '$1 == "FROM" && $NF == stage {print $2}' test/versions/Dockerfile; }
+          node="$(from kind-node)"
+          kube="${node#*:v}"
+          calico="$(from calico)"
+          {
+            echo "kind_node=$node"
+            echo "kubernetes=${kube%@*}"
+            echo "kubeconform=$(from kubeconform)"
+            echo "calico=${calico##*:}"
+          } >> "$GITHUB_OUTPUT"
+          echo "kind node $node, kubeconform $(from kubeconform), calico ${calico##*:}"
+
+      - uses: helm/kind-action@v1.15.0
         with:
-          node_image: kindest/node:v1.33.12
+          node_image: ${{ steps.versions.outputs.kind_node }}
 
       # ClusterIP and a port-forward rather than the kind specific hostPort
       # deployment, so this needs nothing special from the cluster. The
@@ -1053,15 +1127,36 @@ jobs:
         with:
           version: v3.16.2
 
-      - uses: helm/kind-action@v1
+      # The Kubernetes, kubeconform and Calico versions live in test/versions/Dockerfile,
+      # where Dependabot can bump them. kind and kubectl come with helm/kind-action, pinned
+      # to an exact release (the floating v1 tag lagged a kind release behind) so that
+      # Dependabot moves it.
+      - name: Read the pinned versions
+        id: versions
+        working-directory: .
+        run: |
+          set -euo pipefail
+          from() { awk -v stage="$1" '$1 == "FROM" && $NF == stage {print $2}' test/versions/Dockerfile; }
+          node="$(from kind-node)"
+          kube="${node#*:v}"
+          calico="$(from calico)"
+          {
+            echo "kind_node=$node"
+            echo "kubernetes=${kube%@*}"
+            echo "kubeconform=$(from kubeconform)"
+            echo "calico=${calico##*:}"
+          } >> "$GITHUB_OUTPUT"
+          echo "kind node $node, kubeconform $(from kubeconform), calico ${calico##*:}"
+
+      - uses: helm/kind-action@v1.15.0
         with:
-          node_image: kindest/node:v1.33.12
+          node_image: ${{ steps.versions.outputs.kind_node }}
           config: test/kind/calico.yaml
 
       - name: Install Calico
         run: |
           set -euo pipefail
-          kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.1/manifests/calico.yaml
+          kubectl apply -f "https://raw.githubusercontent.com/projectcalico/calico/${{ steps.versions.outputs.calico }}/manifests/calico.yaml"
           kubectl -n kube-system rollout status daemonset/calico-node --timeout=8m
           kubectl wait --for=condition=Ready node --all --timeout=5m
 
