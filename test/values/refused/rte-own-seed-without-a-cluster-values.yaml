@@ -1,0 +1,11 @@
+---
+# A seed of your own and no RTE token. Offline there is no Secret to read, so a generated
+# token would change on every render while the runner in that seed keeps the old one.
+applications:
+  mysql:
+    password: ci-not-a-real-password
+  server:
+    env:
+      ADMIN_PASSWORD: ci-not-a-real-password
+      ENCRYPTION_SECRET: ci-not-a-real-secret
+      CONFIG_SEED_PATH: /app/dist/persistent/seed.yaml

@@ -163,6 +163,7 @@ jobs:
           values = yaml.safe_load(open("values.yaml"))
           app = str(chart["appVersion"])
           image = values["containers"]["server"]["image"]
+          rte = values["containers"]["rte"]["image"]
           mysql = values["containers"]["mysql"]["image"]
           test_image = values["tests"]["image"]
 
@@ -171,6 +172,10 @@ jobs:
               failures.append(f"containers.server.image {image!r} has no tag at all")
           elif image.rsplit(":", 1)[1] != app:
               failures.append(f"appVersion is {app} but containers.server.image is {image}")
+
+          # The RTE is released with the app and tagged alike; the two move together.
+          if ":" not in rte or rte.rsplit(":", 1)[1] != app:
+              failures.append(f"appVersion is {app} but containers.rte.image is {rte}")
 
           # The comment in values.yaml says this one is pinned deliberately,
           # because MySQL does not support downgrades and a floating tag turns a
@@ -182,14 +187,14 @@ jobs:
           # exactly what values.yaml deploys, and nothing else.
           listed = sorted(i["image"] for i in yaml.safe_load(
               chart.get("annotations", {}).get("artifacthub.io/images", "[]")) or [])
-          deployed = sorted([image, mysql, test_image])
+          deployed = sorted([image, rte, mysql, test_image])
           if listed != deployed:
               failures.append(f"artifacthub.io/images lists {listed} but values.yaml deploys {deployed}")
 
           if failures:
               print("\n".join(failures))
               sys.exit("::error::The chart's own image references disagree with themselves.")
-          print(f"appVersion {app} matches {image}, and {mysql} is pinned.")
+          print(f"appVersion {app} matches {image} and {rte}, and {mysql} is pinned.")
           PY
 
       - name: helm lint
@@ -437,6 +442,12 @@ jobs:
               failures.append("the my.cnf checksum did not move when my.cnf changed")
           if base.get("server checksum/secret") != cnf.get("server checksum/secret"):
               failures.append("the secret checksum moved when only my.cnf changed")
+
+          tok = sums("--set", "applications.rte.token=a-token-of-sixteen-chars")
+          if base.get("server checksum/rte") == tok.get("server checksum/rte"):
+              failures.append("the RTE checksum did not move when the RTE token changed")
+          if base.get("server checksum/secret") != tok.get("server checksum/secret"):
+              failures.append("the secret checksum moved when only the RTE token changed")
 
           if sums("--set", "rollOnChange.enabled=false"):
               failures.append("rollOnChange.enabled=false still wrote checksums")
@@ -692,6 +703,25 @@ jobs:
           done
           echo "The two releases are fully independent."
           helm uninstall blue green --namespace side-by-side
+
+      # AnsibleForms 7 runs no playbook itself: the RTE in the server pod does. A pod that
+      # comes up ready proves nothing about that, so launch a playbook form through the API
+      # and wait for the RTE's output to come back.
+      - name: A playbook runs on the RTE
+        run: |
+          set -euo pipefail
+          kubectl create namespace rte
+          helm install rte . \
+            --namespace rte \
+            --values ci/no-ingress-values.yaml \
+            --wait --timeout 12m
+          pod="$(kubectl -n rte get pod -l app.kubernetes.io/component=server -o jsonpath='{.items[0].metadata.name}')"
+          kubectl -n rte cp ../../test/e2e/rte-playbook.mjs "$pod:/tmp/rte-playbook.mjs" -c server
+          kubectl -n rte exec "$pod" -c server -- node /tmp/rte-playbook.mjs || {
+            kubectl -n rte logs "$pod" -c rte --tail=60
+            exit 1
+          }
+          helm uninstall rte --namespace rte
 
       # Generation only works where the chart can read the cluster, so it cannot
       # be covered by rendering. What matters is that the value it invents is

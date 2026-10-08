@@ -15,6 +15,8 @@ values.yaml itself and in the [README](README.md).
 |-----|------|---------|-------------|
 | applications.mysql.password | string | `"<ENTER_PASSWORD_HERE>"` | Database password. Leave out with secrets.existingSecret or secrets.generate. |
 | applications.mysql.user | string | `"root"` | Database user. |
+| applications.rte.env | object | `{}` | Environment variables for the RTE (ANSIBLE_PATH, PROCESS_MAX_BUFFER, NODE_EXTRA_CA_CERTS and so on). |
+| applications.rte.token | string | `""` | RTE token, 16 characters or more. Empty generates one. Ignored with containers.rte.existingTokenSecret. |
 | applications.server.env | object | `{"ADMIN_PASSWORD":"<ENTER_PASSWORD_HERE>","ADMIN_USERNAME":"admin","ALLOW_ENV_EDIT":0,"ENCRYPTION_SECRET":"<ENTER_SECRET_HERE>","HTTPS":0}` | Environment variables for AnsibleForms. Any application setting can be added here. |
 | applications.server.env.ADMIN_PASSWORD | string | `"<ENTER_PASSWORD_HERE>"` | Password of the local admin user created on first start. |
 | applications.server.env.ADMIN_USERNAME | string | `"admin"` | Name of the local admin user created on first start. |
@@ -46,6 +48,20 @@ values.yaml itself and in the [README](README.md).
 | containers.mysql.startup | object | `{"enabled":true,"failureThreshold":30,"initialDelaySeconds":10,"periodSeconds":10,"timeoutSeconds":5}` | MySQL startup probe; failureThreshold x periodSeconds is the first-boot budget. |
 | containers.mysql.tolerations | list | `[]` | MySQL pod tolerations. |
 | containers.mysql.topologySpreadConstraints | list | `[]` | MySQL pod topology spread constraints. |
+| containers.rte.enabled | bool | `true` | Run the RTE next to the app. Without it, playbook forms need a runner added by hand. |
+| containers.rte.existingTokenSecret | string | `""` | Existing Secret holding the RTE token. Empty uses the <release>-rte Secret. |
+| containers.rte.existingTokenSecretKey | string | `"RTE_TOKEN"` | Key of the token in existingTokenSecret. |
+| containers.rte.extraEnv | list | `[]` | Extra env entries for the RTE, written after the generated ones so they win. |
+| containers.rte.extraEnvFrom | list | `[]` | ConfigMaps or Secrets injected as environment into the RTE. |
+| containers.rte.extraVolumeMounts | list | `[]` | Extra volume mounts for the RTE. |
+| containers.rte.image | string | `"ghcr.io/ansibleforms/ansibleforms-rte:7.0.0"` | AnsibleForms RTE image. Keep it on the app's release, or one with the same RTE contract. |
+| containers.rte.imagePullPolicy | string | `"IfNotPresent"` | RTE image pull policy. |
+| containers.rte.liveness | object | `{"failureThreshold":3,"periodSeconds":30,"timeoutSeconds":5}` | RTE liveness probe (TCP). |
+| containers.rte.port | int | `8000` | Port the RTE listens on inside the pod. Any free port above 1024. |
+| containers.rte.resources | object | `{"limits":{"cpu":"2","memory":"2048Mi"},"requests":{"cpu":"250m","memory":"256Mi"}}` | RTE resources. |
+| containers.rte.runnerName | string | `"rte"` | Name of the runner the seed creates. |
+| containers.rte.seedRunner | bool | `true` | Register the RTE as the app's default runner through a config seed. |
+| containers.rte.startup | object | `{"failureThreshold":30,"initialDelaySeconds":5,"periodSeconds":5,"timeoutSeconds":5}` | RTE startup probe (TCP). |
 | containers.server.affinity | object | `{}` | Server pod affinity. |
 | containers.server.bindPrivilegedPorts | bool | `true` | Let the non-root server bind ports 80 and 443 (sets net.ipv4.ip_unprivileged_port_start). |
 | containers.server.extraEnv | list | `[]` | Extra env entries for the server, written after the generated ones so they win. |

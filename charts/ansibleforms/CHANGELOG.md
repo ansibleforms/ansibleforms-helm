@@ -1,5 +1,32 @@
 # Changelog
 
+## 7.1.0
+
+Playbooks run again: an RTE in the server pod.
+
+### Added
+
+- **An RTE runs next to the app, in the server pod**, from
+  `ghcr.io/ansibleforms/ansibleforms-rte:7.0.0`. AnsibleForms 7 runs no playbook itself, so
+  without one every playbook form failed with "No runner to run this playbook". It shares the
+  app's volume and is reached on `127.0.0.1`, so nothing new is published. Settings are under
+  `containers.rte`, and `containers.rte.enabled: false` leaves it out.
+- **The RTE is registered as the default runner through a config seed**, a runner named `rte`
+  that is read-only in the interface. With a seed of your own (`CONFIG_SEED_PATH` set), the
+  chart leaves the seed to you: add the runner with `token: ${RTE_TOKEN}`.
+- **`applications.rte.token`**, the token the app and the RTE share. Left empty, the chart
+  generates one into the `<release>-rte` Secret and keeps it across upgrades, or reads it
+  from `containers.rte.existingTokenSecret`.
+- **`applications.rte.env`** for what the RTE reads rather than the app.
+
+### Upgrading from 7.0.0
+
+1. If `applications.server.env` sets `ANSIBLE_PATH` or `PROCESS_MAX_BUFFER`, move them to
+   `applications.rte.env`: the RTE reads them now.
+2. If your playbooks need collections or Python libraries the RTE image lacks, build your own
+   from the app's `Dockerfile.rte` and set `containers.rte.image`.
+3. Upgrade the chart. Under Connections > Runners the `rte` runner appears as the default.
+
 ## 7.0.0
 
 AnsibleForms 7.
