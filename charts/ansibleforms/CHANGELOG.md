@@ -18,6 +18,8 @@ AnsibleForms 7.
   variable read-only instead of saving changes to a `.env` file on the volume, which would
   override these values on every restart. Set it to `1` under `applications.server.env` to
   allow edits again.
+- **The chart's maintainer is the [ansibleforms](https://github.com/ansibleforms) organization**,
+  as shown on Artifact Hub and by `helm show chart`.
 
 ### Removed
 

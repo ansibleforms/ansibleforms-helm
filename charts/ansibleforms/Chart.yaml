@@ -24,8 +24,8 @@ keywords:
   - self-service
 
 maintainers:
-  - name: ansibleguy76
-    url: https://github.com/ansibleguy76
+  - name: ansibleforms
+    url: https://github.com/ansibleforms
 
 # Shown by Artifact Hub on the chart's page. artifacthub.io/images has to name the images
 # values.yaml deploys; CI fails when they disagree.
