@@ -21,6 +21,20 @@ AnsibleForms 7.
 - **The chart's maintainer is the [ansibleforms](https://github.com/ansibleforms) organization**,
   as shown on Artifact Hub and by `helm show chart`.
 
+### Added
+
+- **An RTE runs next to the app, in the server pod**, from
+  `ghcr.io/ansibleforms/ansibleforms-rte:7.0.0`. AnsibleForms 7 runs no playbook itself; the
+  RTE does. It shares the app's volume and is reached on `127.0.0.1`, so nothing new is
+  published. Settings are under `containers.rte`, and `containers.rte.enabled: false` leaves it out.
+- **The RTE is registered as the default runner through a config seed**, a runner named `rte`
+  that is read-only in the interface. With a seed of your own (`CONFIG_SEED_PATH` set), the
+  chart leaves the seed to you: add the runner with `token: ${RTE_TOKEN}`.
+- **`applications.rte.token`**, the token the app and the RTE share. Left empty, the chart
+  generates one into the `<release>-rte` Secret and keeps it across upgrades, or reads it
+  from `containers.rte.existingTokenSecret`.
+- **`applications.rte.env`** for what the RTE reads rather than the app, such as `ANSIBLE_PATH`.
+
 ### Removed
 
 - **`files/schema.sql`, and the schema in the bundled MySQL's init script.** AnsibleForms 7
@@ -36,7 +50,12 @@ AnsibleForms 7.
 3. If you mount the base configuration from a ConfigMap, rename its key to `config.yaml`
    and point `forms.configMap.key` at it (or take the new defaults). Move the forms into
    the ConfigMap behind `forms.extraFormsConfigMap`.
-4. Upgrade the chart. On its first start 7 migrates the database; nothing else is needed.
+4. Move `ANSIBLE_PATH` and `PROCESS_MAX_BUFFER`, if `applications.server.env` sets them, to
+   `applications.rte.env`: the RTE reads them now. If your playbooks need collections or
+   Python libraries the RTE image lacks, build your own from the app's `Dockerfile.rte` and
+   set `containers.rte.image`.
+5. Upgrade the chart. On its first start 7 migrates the database, and the `rte` runner
+   appears as the default under Connections > Runners.
 
 To stay on 6, pin the chart: `--version "~6"`.
 
