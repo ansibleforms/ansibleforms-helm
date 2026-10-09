@@ -288,6 +288,12 @@ app.kubernetes.io/component: database
 {{- if .withMyCnf -}}
 {{- $_ := set $out "checksum/my-cnf" (include (print $root.Template.BasePath "/mysql-configmap-my-cnf.yaml") $root | sha256sum) -}}
 {{- end -}}
+{{- /* The RTE token from values and the chart's seed: both read once, at pod start */ -}}
+{{- if and .withForms (eq (include "ansibleforms.rte.enabled" $root) "true") -}}
+{{- $token := toString (dig "rte" "token" "" ($root.Values.applications | default dict)) -}}
+{{- $seed := ternary (include "ansibleforms.rte.seed" $root) "" (eq (include "ansibleforms.rte.seedEnabled" $root) "true") -}}
+{{- $_ := set $out "checksum/rte" (printf "%s|%s" $token $seed | sha256sum) -}}
+{{- end -}}
 {{- if and .withForms (dig "external" false ($root.Values.rollOnChange | default dict)) -}}
 {{- $_ := set $out "checksum/external-config" (include "ansibleforms.externalConfigChecksum" $root) -}}
 {{- end -}}
@@ -363,4 +369,72 @@ app.kubernetes.io/component: database
 {{- end -}}
 {{- $parts | join "|" | sha256sum -}}
 {{- end -}}
+{{- end -}}
+
+{{- /*
+  The RTE. AnsibleForms 7 runs no playbook in the app: an RTE runs them, and the chart puts
+  one in the server pod. These helpers say whether it runs, where its token lives and
+  whether the chart registers it with the app through a config seed of its own.
+*/}}
+{{- define "ansibleforms.rte.enabled" -}}
+{{- if dig "rte" "enabled" true (.Values.containers | default dict) -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
+{{- define "ansibleforms.rte.port" -}}
+{{- dig "rte" "port" 8000 (.Values.containers | default dict) -}}
+{{- end -}}
+
+{{- /*
+  The token is kept apart from <release>-secrets on purpose. That Secret may be one the
+  user manages (secrets.existingSecret), and asking everybody who does to add a key before
+  the next upgrade would turn a new feature into a broken rollout. <release>-rte is always
+  the chart's, unless containers.rte.existingTokenSecret names another.
+*/}}
+{{- define "ansibleforms.rte.tokenSecretName" -}}
+{{- $rte := dig "rte" (dict) (.Values.containers | default dict) -}}
+{{- $rte.existingTokenSecret | default (printf "%s-rte" (include "ansibleforms.fullname" .)) -}}
+{{- end -}}
+
+{{- define "ansibleforms.rte.tokenSecretKey" -}}
+{{- $rte := dig "rte" (dict) (.Values.containers | default dict) -}}
+{{- if $rte.existingTokenSecret -}}{{- $rte.existingTokenSecretKey | default "RTE_TOKEN" -}}{{- else -}}RTE_TOKEN{{- end -}}
+{{- end -}}
+
+{{- define "ansibleforms.rte.seedName" -}}
+{{- printf "%s-rte-seed" (include "ansibleforms.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- /*
+  The app reads one config seed, from CONFIG_SEED_PATH. When the user already points it at
+  a seed of their own, the chart's would replace it, so the chart steps aside and the
+  runner goes into their seed instead.
+*/}}
+{{- define "ansibleforms.rte.userSeed" -}}
+{{- $env := (((.Values.applications | default dict).server | default dict).env | default dict) -}}
+{{- $found := hasKey $env "CONFIG_SEED_PATH" -}}
+{{- range $e := (dig "server" "extraEnv" (list) (.Values.containers | default dict)) -}}
+{{- if eq (toString $e.name) "CONFIG_SEED_PATH" -}}{{- $found = true -}}{{- end -}}
+{{- end -}}
+{{- if $found -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
+{{- define "ansibleforms.rte.seedEnabled" -}}
+{{- if and (eq (include "ansibleforms.rte.enabled" .) "true")
+           (dig "rte" "seedRunner" true (.Values.containers | default dict))
+           (eq (include "ansibleforms.rte.userSeed" .) "false") -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
+{{- define "ansibleforms.rte.seed" -}}
+{{- $rte := dig "rte" (dict) (.Values.containers | default dict) -}}
+# Written by the AnsibleForms Helm chart: the RTE in the server pod, as the default runner.
+# The token is read from the environment when the seed is applied.
+version: 1
+runners:
+  items:
+    - name: {{ $rte.runnerName | default "rte" | quote }}
+      type: rte
+      description: "The RTE in the server pod, from the Helm chart"
+      uri: {{ printf "http://127.0.0.1:%v" (include "ansibleforms.rte.port" .) | quote }}
+      token: "${RTE_TOKEN}"
+      is_default: true
 {{- end -}}

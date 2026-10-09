@@ -3,9 +3,10 @@ name: Follow app release
 # Keeps the chart's default image on par with AnsibleForms. When the app releases, its
 # release workflow sends an app-release repository_dispatch here with the tag. This
 # workflow finds the chart line of that major version (main for the current major,
-# release/<major>.x for a maintenance line), moves the default image, appVersion and the
-# Artifact Hub images annotation to the release, bumps the chart's patch version, adds a
-# changelog entry, regenerates VALUES.md and opens a pull request with auto-merge on.
+# release/<major>.x for a maintenance line), moves the default app and RTE images,
+# appVersion and the Artifact Hub images annotation to the release, bumps the chart's
+# patch version, adds a changelog entry, regenerates VALUES.md and opens a pull request
+# with auto-merge on.
 #
 # Nothing is published from here. The pull request goes through the full CI like any
 # other, merges itself only once CI passed is green, and the release workflow then
@@ -131,7 +132,11 @@ jobs:
               print(f"The chart already defaults to {now}, nothing to do for {version}.")
               out.write("skip=true\n")
               sys.exit(0)
-          open(values_path, "w").write(values.replace(image.group(0), image.group(1) + version, 1))
+          values = values.replace(image.group(0), image.group(1) + version, 1)
+          # The RTE is released with the app under the same tag
+          values = re.sub(r"(image: ghcr\.io/ansibleforms/ansibleforms-rte:)\d+\.\d+\.\d+",
+                          lambda m: m.group(1) + version, values, count=1)
+          open(values_path, "w").write(values)
 
           chart_path = "charts/ansibleforms/Chart.yaml"
           chart = open(chart_path).read()
@@ -141,13 +146,15 @@ jobs:
           chart = re.sub(r'(?m)^appVersion: "?[0-9.]+"?$', f'appVersion: "{version}"', chart, count=1)
           chart = chart.replace(f"image: ghcr.io/ansibleforms/ansibleforms:{now}",
                                 f"image: ghcr.io/ansibleforms/ansibleforms:{version}")
+          chart = chart.replace(f"image: ghcr.io/ansibleforms/ansibleforms-rte:{now}",
+                                f"image: ghcr.io/ansibleforms/ansibleforms-rte:{version}")
           open(chart_path, "w").write(chart)
 
           log_path = "charts/ansibleforms/CHANGELOG.md"
           log = open(log_path).read()
           entry = (f"## {new}\n\nAnsibleForms {version}.\n\n### Changed\n\n"
                    f"- **The default image is AnsibleForms {version}**,\n"
-                   f"  `ghcr.io/ansibleforms/ansibleforms:{version}`, and `appVersion` follows. See the\n"
+                   f"  `ghcr.io/ansibleforms/ansibleforms:{version}` (the RTE alike), and `appVersion` follows. See the\n"
                    f"  [{version} release notes](https://github.com/ansibleforms/ansibleforms/releases/tag/{version}).\n\n")
           log = log.replace("# Changelog\n\n", "# Changelog\n\n" + entry, 1)
           open(log_path, "w").write(log)

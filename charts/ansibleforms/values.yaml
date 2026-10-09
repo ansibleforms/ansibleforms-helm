@@ -131,6 +131,22 @@ applications:
       # ******** ENABLE THIS FOR PRIVATE CA CERTS ********
       # NODE_EXTRA_CA_CERTS: /etc/custom-certs/custom-ca.crt
 
+  # RTE CONFIGURATION
+  # AnsibleForms 7 runs no playbook itself: every playbook runs on an RTE (runtime
+  # environment), the same server started with AF_ROLE=rte. The chart runs one next to the
+  # app, in the server pod (see containers.rte).
+  rte:
+    # The token the app sends with every call to the RTE, at least 16 characters. Left
+    # empty, the chart generates one on the first install and keeps it in the
+    # <release>-rte Secret, so it never moves afterwards. It is not a key to any data: the
+    # chart's config seed hands the same value to the app's runner on every start.
+    # -- RTE token, 16 characters or more. Empty generates one. Ignored with containers.rte.existingTokenSecret.
+    token: ''
+    # Settings that belong to the RTE now rather than to the app, such as ANSIBLE_PATH and
+    # PROCESS_MAX_BUFFER. Move them here from applications.server.env.
+    # -- Environment variables for the RTE (ANSIBLE_PATH, PROCESS_MAX_BUFFER, NODE_EXTRA_CA_CERTS and so on).
+    env: {}
+
 # ==============================================================================
 # CONTAINERS CONFIGURATION
 # ==============================================================================
@@ -499,6 +515,77 @@ containers:
     #     mountPath: /etc/custom-certs/custom-ca.crt
     #     subPath: custom-ca.crt
     #     readOnly: true
+
+# ~~~~
+
+  # The RTE, the runtime environment that runs the playbooks. It is a second container in
+  # the server pod rather than a Deployment of its own: it needs the app's volume (the
+  # playbooks, repositories, uploads and SSH key), and the volume is ReadWriteOnce. The app
+  # reaches it on 127.0.0.1, so its port is never published outside the pod.
+  #
+  # The image is where your playbooks' dependencies live: collections, Python libraries,
+  # ansible.cfg. Build your own from the app's Dockerfile.rte and point image at it.
+  rte:
+    # -- Run the RTE next to the app. Without it, playbook forms need a runner added by hand.
+    enabled: true
+    # -- AnsibleForms RTE image. Keep it on the app's release, or one with the same RTE contract.
+    image: ghcr.io/ansibleforms/ansibleforms-rte:7.0.0
+    # -- RTE image pull policy.
+    imagePullPolicy: IfNotPresent
+    # -- Port the RTE listens on inside the pod. Any free port above 1024.
+    port: 8000
+
+    # The chart registers the RTE with the app through a config seed: a runner named after
+    # runnerName, type rte, on http://127.0.0.1:<port>, with the token, ticked as the
+    # default. The seed re-applies it on every start, so the runner is read-only in the
+    # interface. With a config seed of your own (CONFIG_SEED_PATH set in
+    # applications.server.env or containers.server.extraEnv) the chart leaves the seed to
+    # you: add the runner to it, with token: ${RTE_TOKEN}.
+    # -- Register the RTE as the app's default runner through a config seed.
+    seedRunner: true
+    # -- Name of the runner the seed creates.
+    runnerName: rte
+
+    # A Secret you manage yourself that holds the token, for Argo CD and Flux, which render
+    # without a cluster to read and cannot keep a generated token.
+    # -- Existing Secret holding the RTE token. Empty uses the <release>-rte Secret.
+    existingTokenSecret: ''
+    # -- Key of the token in existingTokenSecret.
+    existingTokenSecretKey: RTE_TOKEN
+
+    # A playbook runs here, not in the app, so this is the container that needs room.
+    # -- RTE resources.
+    resources:
+      limits:
+        cpu: '2'
+        memory: 2048Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+    # The RTE answers on its port only with the token, so the probes open a connection,
+    # as the image's own health check does. There is no readiness probe on purpose: the
+    # app keeps serving while the RTE restarts, and a job started then fails with a reason.
+    # -- RTE startup probe (TCP).
+    startup:
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 30
+    # -- RTE liveness probe (TCP).
+    liveness:
+      periodSeconds: 30
+      timeoutSeconds: 5
+      failureThreshold: 3
+
+    # -- Extra env entries for the RTE, written after the generated ones so they win.
+    extraEnv: []
+    # -- ConfigMaps or Secrets injected as environment into the RTE.
+    extraEnvFrom: []
+    # Mounts of the volumes in extraVolumes: custom CA certificates, an ansible.cfg, a
+    # folder of playbooks of your own.
+    # -- Extra volume mounts for the RTE.
+    extraVolumeMounts: []
 
 # ~~~~
 

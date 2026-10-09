@@ -5,6 +5,7 @@ This Helm chart deploys the AnsibleForms application and its MySQL database on K
 ## Features
 
 - Deploys AnsibleForms and MySQL with configurable images and resources
+- Runs the playbooks on an RTE next to the app, registered as the default runner
 - Handles all sensitive data (DB credentials, admin credentials, encryption secret) via Kubernetes Secrets
 - All application environment variables are configurable via `values.yaml`
 - Storage class and size for both server and MySQL are configurable
@@ -530,6 +531,60 @@ spec:
 
 Leave `HTTPS: 0` if you would rather have the ingress controller terminate TLS
 and talk plain HTTP inside the cluster, which is what most people want.
+
+## Running playbooks: the RTE
+
+AnsibleForms 7 runs no playbook in the app: every playbook runs on an RTE (runtime
+environment), `ghcr.io/ansibleforms/ansibleforms-rte`. The chart runs one as a second
+container in the server pod. It shares the app's volume, so it sees the same playbooks,
+repositories, uploads and SSH key, and the app reaches it on `127.0.0.1:8000`; nothing new
+is published outside the pod.
+
+The chart also registers it for you. A config seed creates a runner named `rte`, type RTE,
+ticked as the default, so a playbook form runs on it without any setup. The seed re-applies
+it on every start, which is why the runner is read-only under Connections > Runners.
+
+```yaml
+applications:
+  rte:
+    token: ""                 # empty: generated once into <release>-rte and kept
+    env:
+      ANSIBLE_PATH: /app/dist/persistent/playbooks
+containers:
+  rte:
+    enabled: true
+    image: ghcr.io/ansibleforms/ansibleforms-rte:7.0.0
+    runnerName: rte
+```
+
+The RTE image holds what your playbooks need: ansible, the Python libraries and the
+collections. When yours need more, build your own image from the app's `Dockerfile.rte`,
+adding `RUN ansible-galaxy collection install ...` or `RUN /venv/bin/pip install ...`, and
+point `containers.rte.image` at it. Keep its release on the app's, or on one with the same
+RTE contract: Test connection under Connections > Runners shows both.
+
+**The token.** The app sends it with every call and the RTE answers nothing without it.
+Left empty, the chart generates one on the first install and keeps it across upgrades. It
+is not a key to any data, so Argo CD and Flux, which render without a cluster to read,
+only see the Secret change on each sync; set `applications.rte.token`, or point
+`containers.rte.existingTokenSecret` at a Secret you manage, to keep it still.
+
+**A config seed of your own.** The app reads one seed, from `CONFIG_SEED_PATH`. When you set
+it, the chart leaves the seed to you and passes the token to the app as `RTE_TOKEN`, so add
+the runner to your seed:
+
+```yaml
+runners:
+  items:
+    - name: rte
+      type: rte
+      uri: http://127.0.0.1:8000
+      token: ${RTE_TOKEN}
+      is_default: true
+```
+
+**Without the RTE.** `containers.rte.enabled: false` leaves it out, for an RTE you run
+elsewhere or for AWX, AAP or Ascender only. Add those runners under Connections > Runners.
 
 ## Tuning the bundled MySQL
 
