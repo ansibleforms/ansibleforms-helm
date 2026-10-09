@@ -122,6 +122,10 @@ applications:
       # the pages then show every variable read-only, with the value in force.
       # -- 0 makes the settings pages read-only for environment variables, so these values stay the only source.
       ALLOW_ENV_EDIT: 0
+      # ACCESS_TOKEN_SECRET signs the sessions. Left out, the chart generates one into the
+      # <release>-keys Secret and keeps it across upgrades, so nobody is signed out when
+      # the pod restarts. Set it here, or in extraEnv from a Secret of your own, to choose it.
+      # ACCESS_TOKEN_SECRET: <a long random string>
 
       # -------- EXTRA ENV VARIABLES FOR SERVER --------
 
@@ -138,7 +142,7 @@ applications:
   rte:
     # The token the app sends with every call to the RTE, at least 16 characters. Left
     # empty, the chart generates one on the first install and keeps it in the
-    # <release>-rte Secret, so it never moves afterwards. It is not a key to any data: the
+    # <release>-keys Secret, so it never moves afterwards. It is not a key to any data: the
     # chart's config seed hands the same value to the app's runner on every start.
     # -- RTE token, 16 characters or more. Empty generates one. Ignored with containers.rte.existingTokenSecret.
     token: ''
@@ -548,7 +552,7 @@ containers:
 
     # A Secret you manage yourself that holds the token, for Argo CD and Flux, which render
     # without a cluster to read and cannot keep a generated token.
-    # -- Existing Secret holding the RTE token. Empty uses the <release>-rte Secret.
+    # -- Existing Secret holding the RTE token. Empty uses the <release>-keys Secret.
     existingTokenSecret: ''
     # -- Key of the token in existingTokenSecret.
     existingTokenSecretKey: RTE_TOKEN

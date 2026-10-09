@@ -49,7 +49,7 @@ values.yaml itself and in the [README](README.md).
 | containers.mysql.tolerations | list | `[]` | MySQL pod tolerations. |
 | containers.mysql.topologySpreadConstraints | list | `[]` | MySQL pod topology spread constraints. |
 | containers.rte.enabled | bool | `true` | Run the RTE next to the app. Without it, playbook forms need a runner added by hand. |
-| containers.rte.existingTokenSecret | string | `""` | Existing Secret holding the RTE token. Empty uses the <release>-rte Secret. |
+| containers.rte.existingTokenSecret | string | `""` | Existing Secret holding the RTE token. Empty uses the <release>-keys Secret. |
 | containers.rte.existingTokenSecretKey | string | `"RTE_TOKEN"` | Key of the token in existingTokenSecret. |
 | containers.rte.extraEnv | list | `[]` | Extra env entries for the RTE, written after the generated ones so they win. |
 | containers.rte.extraEnvFrom | list | `[]` | ConfigMaps or Secrets injected as environment into the RTE. |

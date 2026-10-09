@@ -1,5 +1,22 @@
 # Changelog
 
+## 7.2.0
+
+Sessions survive a restart.
+
+### Added
+
+- **`ACCESS_TOKEN_SECRET` is set**, generated once into the `<release>-keys` Secret and kept
+  across upgrades. Without it AnsibleForms signed every session with a key made up at start,
+  so each pod restart signed everybody out. Set `applications.server.env.ACCESS_TOKEN_SECRET`
+  to choose it.
+
+### Changed
+
+- **The RTE token moved from `<release>-rte` to `<release>-keys`.** The chart carries it over
+  by itself only when `applications.rte.token` is set; a generated one is generated again,
+  which the config seed hands to the runner on the next start.
+
 ## 7.1.0
 
 Playbooks run again: an RTE in the server pod.
@@ -15,7 +32,7 @@ Playbooks run again: an RTE in the server pod.
   that is read-only in the interface. With a seed of your own (`CONFIG_SEED_PATH` set), the
   chart leaves the seed to you: add the runner with `token: ${RTE_TOKEN}`.
 - **`applications.rte.token`**, the token the app and the RTE share. Left empty, the chart
-  generates one into the `<release>-rte` Secret and keeps it across upgrades, or reads it
+  generates one into the `<release>-keys` Secret and keeps it across upgrades, or reads it
   from `containers.rte.existingTokenSecret`.
 - **`applications.rte.env`** for what the RTE reads rather than the app.
 

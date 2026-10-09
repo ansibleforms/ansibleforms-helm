@@ -532,6 +532,14 @@ spec:
 Leave `HTTPS: 0` if you would rather have the ingress controller terminate TLS
 and talk plain HTTP inside the cluster, which is what most people want.
 
+## Sessions across restarts
+
+AnsibleForms signs its sessions with `ACCESS_TOKEN_SECRET`. The chart generates one on the
+first install into the `<release>-keys` Secret and keeps it across upgrades, so a restarted
+pod no longer signs everybody out. To choose it yourself, set
+`applications.server.env.ACCESS_TOKEN_SECRET`, or take it from a Secret of your own through
+`containers.server.extraEnv`, which wins over the generated one. Changing it ends every session.
+
 ## Running playbooks: the RTE
 
 AnsibleForms 7 runs no playbook in the app: every playbook runs on an RTE (runtime
@@ -547,7 +555,7 @@ it on every start, which is why the runner is read-only under Connections > Runn
 ```yaml
 applications:
   rte:
-    token: ""                 # empty: generated once into <release>-rte and kept
+    token: ""                 # empty: generated once into <release>-keys and kept
     env:
       ANSIBLE_PATH: /app/dist/persistent/playbooks
 containers:

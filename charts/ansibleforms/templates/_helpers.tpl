@@ -288,11 +288,12 @@ app.kubernetes.io/component: database
 {{- if .withMyCnf -}}
 {{- $_ := set $out "checksum/my-cnf" (include (print $root.Template.BasePath "/mysql-configmap-my-cnf.yaml") $root | sha256sum) -}}
 {{- end -}}
-{{- /* The RTE token from values and the chart's seed: both read once, at pod start */ -}}
-{{- if and .withForms (eq (include "ansibleforms.rte.enabled" $root) "true") -}}
+{{- /* The keys and the chart's seed, as the values declare them: read once, at pod start */ -}}
+{{- if .withForms -}}
+{{- $session := toString (dig "server" "env" "ACCESS_TOKEN_SECRET" "" ($root.Values.applications | default dict)) -}}
 {{- $token := toString (dig "rte" "token" "" ($root.Values.applications | default dict)) -}}
 {{- $seed := ternary (include "ansibleforms.rte.seed" $root) "" (eq (include "ansibleforms.rte.seedEnabled" $root) "true") -}}
-{{- $_ := set $out "checksum/rte" (printf "%s|%s" $token $seed | sha256sum) -}}
+{{- $_ := set $out "checksum/keys" (printf "%s|%s|%s" $session $token $seed | sha256sum) -}}
 {{- end -}}
 {{- if and .withForms (dig "external" false ($root.Values.rollOnChange | default dict)) -}}
 {{- $_ := set $out "checksum/external-config" (include "ansibleforms.externalConfigChecksum" $root) -}}
@@ -387,12 +388,17 @@ app.kubernetes.io/component: database
 {{- /*
   The token is kept apart from <release>-secrets on purpose. That Secret may be one the
   user manages (secrets.existingSecret), and asking everybody who does to add a key before
-  the next upgrade would turn a new feature into a broken rollout. <release>-rte is always
-  the chart's, unless containers.rte.existingTokenSecret names another.
+  the next upgrade would turn a new feature into a broken rollout. It lives in
+  <release>-keys, which is always the chart's, unless containers.rte.existingTokenSecret
+  names another.
 */}}
+{{- define "ansibleforms.keysSecretName" -}}
+{{- printf "%s-keys" (include "ansibleforms.fullname" .) -}}
+{{- end -}}
+
 {{- define "ansibleforms.rte.tokenSecretName" -}}
 {{- $rte := dig "rte" (dict) (.Values.containers | default dict) -}}
-{{- $rte.existingTokenSecret | default (printf "%s-rte" (include "ansibleforms.fullname" .)) -}}
+{{- $rte.existingTokenSecret | default (include "ansibleforms.keysSecretName" .) -}}
 {{- end -}}
 
 {{- define "ansibleforms.rte.tokenSecretKey" -}}

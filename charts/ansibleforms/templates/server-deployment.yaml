@@ -35,7 +35,7 @@
 */}}
 {{- $port := include "ansibleforms.server.port" . }}
 {{- $scheme := include "ansibleforms.server.scheme" . }}
-{{- $sensitive := dict "ENCRYPTION_SECRET" true "ADMIN_USERNAME" true "ADMIN_PASSWORD" true }}
+{{- $sensitive := dict "ENCRYPTION_SECRET" true "ADMIN_USERNAME" true "ADMIN_PASSWORD" true "ACCESS_TOKEN_SECRET" true }}
 {{- $rteOn := eq (include "ansibleforms.rte.enabled" .) "true" }}
 {{- $seedOn := eq (include "ansibleforms.rte.seedEnabled" .) "true" }}
 {{- $rte := ($containers.rte | default dict) }}
@@ -200,6 +200,13 @@ spec:
                 secretKeyRef:
                   name: {{ $secretName }}
                   key: ADMIN_PASSWORD
+
+            {{- /* Signs the sessions, so they survive a restart */}}
+            - name: ACCESS_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ansibleforms.keysSecretName" . }}
+                  key: ACCESS_TOKEN_SECRET
 
             {{- if $rteOn }}
             {{- /*
