@@ -31,9 +31,12 @@ AnsibleForms 7.
   that is read-only in the interface. With a seed of your own (`CONFIG_SEED_PATH` set), the
   chart leaves the seed to you: add the runner with `token: ${RTE_TOKEN}`.
 - **`applications.rte.token`**, the token the app and the RTE share. Left empty, the chart
-  generates one into the `<release>-rte` Secret and keeps it across upgrades, or reads it
+  generates one into the `<release>-keys` Secret and keeps it across upgrades, or reads it
   from `containers.rte.existingTokenSecret`.
 - **`applications.rte.env`** for what the RTE reads rather than the app, such as `ANSIBLE_PATH`.
+- **`ACCESS_TOKEN_SECRET` is set**, generated once into the `<release>-keys` Secret and kept
+  across upgrades, so a pod restart no longer signs everybody out. Set
+  `applications.server.env.ACCESS_TOKEN_SECRET` to choose it.
 
 ### Removed
 

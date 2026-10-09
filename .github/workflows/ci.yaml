@@ -443,11 +443,13 @@ jobs:
           if base.get("server checksum/secret") != cnf.get("server checksum/secret"):
               failures.append("the secret checksum moved when only my.cnf changed")
 
-          tok = sums("--set", "applications.rte.token=a-token-of-sixteen-chars")
-          if base.get("server checksum/rte") == tok.get("server checksum/rte"):
-              failures.append("the RTE checksum did not move when the RTE token changed")
-          if base.get("server checksum/secret") != tok.get("server checksum/secret"):
-              failures.append("the secret checksum moved when only the RTE token changed")
+          for setting in ("applications.rte.token=a-token-of-sixteen-chars",
+                          "applications.server.env.ACCESS_TOKEN_SECRET=another-session-key"):
+              key = sums("--set", setting)
+              if base.get("server checksum/keys") == key.get("server checksum/keys"):
+                  failures.append(f"the keys checksum did not move for {setting}")
+              if base.get("server checksum/secret") != key.get("server checksum/secret"):
+                  failures.append(f"the secret checksum moved for {setting}")
 
           if sums("--set", "rollOnChange.enabled=false"):
               failures.append("rollOnChange.enabled=false still wrote checksums")
@@ -721,6 +723,12 @@ jobs:
             kubectl -n rte logs "$pod" -c rte --tail=60
             exit 1
           }
+          # The sessions are signed with the chart's ACCESS_TOKEN_SECRET, not a key the app
+          # made up at start, so a restart signs nobody out.
+          if kubectl -n rte logs "$pod" -c server | grep -q "ACCESS_TOKEN_SECRET is not set"; then
+            echo "::error::The app runs without ACCESS_TOKEN_SECRET: every restart signs everybody out."
+            exit 1
+          fi
           helm uninstall rte --namespace rte
 
       # Generation only works where the chart can read the cluster, so it cannot
