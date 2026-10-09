@@ -87,6 +87,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.chart.outputs.version }}
+          # The commit CI tested and this job packaged. Without --target the tag went on
+          # the tip of the default branch, so a 6.x release tagged a commit on main.
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           # Only the highest version is GitHub's "Latest". A 6.x patch released after
           # 7.0.0 must not take that from the 7 line.
@@ -95,6 +98,7 @@ jobs:
           [ "$highest" = "$VERSION" ] && latest=true
           echo "Releasing $VERSION (highest released: $highest, latest: $latest)"
           gh release create "v${VERSION}" \
+            --target "$SHA" \
             --title "ansibleforms ${VERSION}" \
             --generate-notes \
             --latest="$latest" \
