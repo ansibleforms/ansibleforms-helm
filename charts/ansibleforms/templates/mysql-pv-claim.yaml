@@ -1,0 +1,41 @@
+{{- if dig "enabled" true (.Values.mysql | default dict) }}
+{{- /* Normalise values so a missing key does not blow up the render */}}
+{{- $mysql := .Values.storages.mysql | default dict -}}
+{{- $static := $mysql.static | default dict -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ include "ansibleforms.mysql.pvcName" . }}
+  labels:
+    {{- include "ansibleforms.mysql.labels" . | nindent 4 }}
+  {{- with (include "ansibleforms.annotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    - {{ $mysql.accessMode | default "ReadWriteMany" }}
+  resources:
+    requests:
+      storage: {{ $mysql.size | default "10Gi" }}
+
+  {{- if $static.enabled }}
+
+  {{- /* Static volume: a PersistentVolume with this name is expected to exist */}}
+  {{- if $static.storageClassName }}
+  storageClassName: {{ $static.storageClassName }}
+  {{- else }}
+  storageClassName: ""
+  {{- end }}
+  volumeName: {{ default (printf "%s-mysql-pv" (include "ansibleforms.fullname" .)) $static.volumeName }}
+
+  {{- else }}
+
+  {{- /* Dynamic provisioning through a StorageClass (Longhorn, NFS CSI, ...) */}}
+  {{- if $mysql.className }}
+  storageClassName: {{ $mysql.className }}
+  {{- end }}
+
+  {{- end }}
+{{- end }}

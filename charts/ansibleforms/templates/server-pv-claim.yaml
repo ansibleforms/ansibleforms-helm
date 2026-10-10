@@ -1,0 +1,39 @@
+{{- /* Normalise values so a missing key does not blow up the render */}}
+{{- $server := .Values.storages.server | default dict -}}
+{{- $static := $server.static | default dict -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ include "ansibleforms.server.pvcName" . }}
+  labels:
+    {{- include "ansibleforms.server.labels" . | nindent 4 }}
+  {{- with (include "ansibleforms.annotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    - {{ $server.accessMode | default "ReadWriteMany" }}
+  resources:
+    requests:
+      storage: {{ $server.size | default "10Gi" }}
+
+  {{- if $static.enabled }}
+
+  {{- /* Static volume: a PersistentVolume with this name is expected to exist */}}
+  {{- if $static.storageClassName }}
+  storageClassName: {{ $static.storageClassName }}
+  {{- else }}
+  storageClassName: ""
+  {{- end }}
+  volumeName: {{ default (printf "%s-server-pv" (include "ansibleforms.fullname" .)) $static.volumeName }}
+
+  {{- else }}
+
+  {{- /* Dynamic provisioning through a StorageClass (Longhorn, NFS CSI, ...) */}}
+  {{- if $server.className }}
+  storageClassName: {{ $server.className }}
+  {{- end }}
+
+  {{- end }}
