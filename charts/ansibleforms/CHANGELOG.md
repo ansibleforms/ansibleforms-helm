@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.0.2
+
+AnsibleForms 6.0.2.
+
+### Changed
+
+- **The default image is AnsibleForms 6.0.2**,
+  `ghcr.io/ansibleforms/ansibleforms:6.0.2`, and `appVersion` follows. See the
+  [6.0.2 release notes](https://github.com/ansibleforms/ansibleforms/releases/tag/6.0.2).
+
 ## 6.0.0
 
 AnsibleForms 6.0.0, and the first release of the chart. From here on the chart version is
