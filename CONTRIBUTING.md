@@ -97,9 +97,9 @@ anyway fails rather than quietly proving nothing.
 **Route through a real ingress controller.** kind ships without one, so the
 Ingress used to be rendered, validated and never asked for a single page. This
 installs ingress-nginx and fetches the application through it, both plain and
-with the application terminating TLS itself. That second case is where the port
-bug fixed in 6.2.2 lived: a manifest that validates perfectly and that no
-controller can route.
+with the application terminating TLS itself. That second case is where a port
+bug once lived: a manifest that validates perfectly and that no controller can
+route.
 
 To try a real install:
 
@@ -111,11 +111,13 @@ helm upgrade --install test charts/ansibleforms \
 
 ## Cutting a release
 
-Releases are driven by the `version` field in `charts/ansibleforms/Chart.yaml`. Bump it in a pull
-request, merge to `main`, and the release workflow tags the version, attaches
-the packaged chart to a GitHub release, pushes it to GHCR as an OCI artifact and
-asks ansibleforms.com to rebuild, which serves the Helm repository at
-`https://ansibleforms.com/helm-charts/`, indexed from these releases.
+The chart is versioned with AnsibleForms: chart 7.0.0 is the chart for AnsibleForms
+7.0.0, and `version` and `appVersion` in `charts/ansibleforms/Chart.yaml` are always
+the same (CI refuses a pull request where they differ). A release is the *Follow app
+release* pull request moving both to a new AnsibleForms version. Once it is merged,
+the release workflow tags the version, attaches the packaged chart to a GitHub
+release, pushes it to GHCR as an OCI artifact and asks ansibleforms.com to rebuild,
+which serves the Helm repository at `https://ansibleforms.com/helm-charts/`.
 
 It runs after CI, not alongside it, and does nothing unless CI finished green,
 so a failing build cannot publish. Merging with a version that already has a tag
@@ -123,20 +125,38 @@ is a no-op, which is what makes it safe to leave running on every push. To
 rebuild the Helm repository index without releasing anything, run the workflow
 by hand from the Actions tab.
 
-`version` is the chart version and follows the chart's own changes. `appVersion`
-tracks the AnsibleForms release the default image points at. They are no longer
-kept in lockstep: a fix to a template does not need a new application release.
+A change to the chart itself (`Chart.yaml`, `values.yaml`, `templates/` or `files/`)
+keeps the version and goes out with the next AnsibleForms release. Say what it does
+under `## Unreleased` at the top of `charts/ansibleforms/CHANGELOG.md`; CI refuses a
+chart change without that entry, so nothing waits unnoticed. Anything that renames a
+resource, removes a value or forces an existing Deployment to be recreated belongs
+there with the steps an operator has to take. Changes that do not reach the packaged
+chart, to CI, to `test/` or to the documentation, need no entry; the chart's `ci/` is
+in its `.helmignore`, and `test/` sits outside the chart altogether.
 
-Anything that renames a resource, removes a value or forces an existing
-Deployment to be recreated is a major bump, and belongs in `charts/ansibleforms/CHANGELOG.md` with
-the steps an operator has to take.
+## Following app releases
 
-CI refuses a pull request that changes `Chart.yaml`, `values.yaml`, `templates/`
-or `files/` without moving the version, and refuses a version that has already
-been released. Both would merge green and publish nothing, leaving the change on
-`main` until some later release dragged it along. Changes that do not reach the
-packaged chart, to CI, to `test/` or to the documentation, need no bump; the chart's
-`ci/` is in its `.helmignore`, and `test/` sits outside the chart altogether.
+An app release sends an `app-release` dispatch here, and the *Follow app release*
+workflow opens a pull request on the line of that major (`main`, or
+`release/<major>.x`) that moves the default image, `version`, `appVersion` and the
+Artifact Hub images annotation to the release, and turns `## Unreleased` into that
+version's changelog entry. It merges itself once **CI passed** is green, and the
+release workflow publishes the chart. A new major version opens an issue instead,
+because moving the chart across a major takes real work. To catch up on a release
+by hand: Actions → *Follow app release* → Run workflow, with the version.
+
+## The 6.x maintenance line
+
+`main` is the chart for AnsibleForms 7. The chart for AnsibleForms 6 lives on
+`release/6.x`, at chart 6.5.5: fixes go there through a pull request against it, under
+the same rules as on `main`, and a new AnsibleForms 6 release moves it the same way.
+
+The release workflow publishes both lines. A 6.x release goes to the same chart
+repository and OCI registry, and is not marked as the latest GitHub release while a
+higher version exists. CI's upgrade test starts from the newest published chart of the
+branch's own major, so a 6.x pull request upgrades a 6.x release.
+
+Users stay on 6 by pinning the chart: `--version "~6"`.
 
 ## Repository settings this depends on
 

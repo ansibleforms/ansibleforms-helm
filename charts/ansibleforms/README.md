@@ -39,13 +39,13 @@ helm upgrade --install ansibleforms oci://ghcr.io/ansibleforms/charts/ansiblefor
 ```
 
 Pin the chart version in anything that runs unattended, for example
-`--version 6.2.2`, so a new release never lands on its own. Charts up to and including 6.2.9
-are in the OCI registry at `oci://ghcr.io/ansibleguy76/charts/ansibleforms` instead.
+`--version 6.5.5`, so a new release never lands on its own. The chart version is the
+AnsibleForms version it installs, so `--version "~6.5"` stays on AnsibleForms 6.5 and its fixes.
 
-The chart repository lives at `https://ansibleforms.com/helm-charts/`. It was served from
-`https://ansibleforms.github.io/ansibleforms-helm/` up to chart 6.3.0 and from
-`https://ansibleforms.github.io/helm-charts/` up to 6.3.6; neither answers any more. If you
-added it under one of those addresses, point it at the current one:
+The chart repository lives at `https://ansibleforms.com/helm-charts/`. It used to be served
+from `https://ansibleforms.github.io/ansibleforms-helm/` and later
+`https://ansibleforms.github.io/helm-charts/`; neither answers any more. If you added it under
+one of those addresses, point it at the current one:
 
 ```bash
 helm repo remove ansibleforms
@@ -457,8 +457,8 @@ entries under `applications.server.env` from your values entirely.
 Worth knowing if you manage that Secret yourself: the name the chart generates
 is `<release>-secrets`, which is very often the same name people give theirs. If
 you do not set `existingSecret`, the chart will happily create its own Secret
-under that name and overwrite yours on the next sync. Since 6.2.1 it at least
-refuses to write the placeholder passwords from `values.yaml` into it.
+under that name and overwrite yours on the next sync. It does at least refuse
+to write the placeholder passwords from `values.yaml` into it.
 
 ### 7. Using a database the chart does not manage
 
@@ -714,10 +714,10 @@ kubectl logs -l app.kubernetes.io/component=database
 
 ## Configuration changes restart what reads them
 
-A pod reads its configuration once, when it starts. Before 6.2.7 changing the
-Secret left the running process with the environment it was given, and changing
-`mysql.config` did not even reach the container: the file is mounted with
-`subPath`, and subPath mounts are frozen at pod creation.
+A pod reads its configuration once, when it starts. Left at that, changing the
+Secret would leave the running process with the environment it was given, and
+changing `mysql.config` would not even reach the container: the file is mounted
+with `subPath`, and subPath mounts are frozen at pod creation.
 
 The chart writes a checksum of what it renders into the pod template, so a
 change to either becomes an ordinary rollout. An upgrade that changes nothing
@@ -777,9 +777,9 @@ ignored:
 - at '': additional properties 'stroages' not allowed
 ```
 
-That also catches `mysql_deployment.enabled`, renamed to `mysql.enabled` in
-6.2.1, which otherwise leaves you believing the database is disabled while the
-chart deploys it anyway.
+That also catches `mysql_deployment.enabled`, the old name of `mysql.enabled`,
+which otherwise leaves you believing the database is disabled while the chart
+deploys it anyway.
 
 Below the top level the schema only checks types and enumerations, and lets
 unknown keys through, so a values file carrying somebody's own leftover keeps
