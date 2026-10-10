@@ -82,7 +82,7 @@
 {{- /*
   The database user AnsibleForms connects with. Given in values, it is that. Left
   empty, an upgrade keeps the one the release's Secret already holds (an install
-  from before 7.0.1 connects as root, and its data directory has no other user),
+  made by an earlier chart connects as root, and its data directory has no other user),
   and a new install gets "ansibleforms", which the bundled MySQL creates with
   rights on the AnsibleForms schema only (root with a database of your own, as
   before : nothing creates the user there). Empty when it cannot be known : an
