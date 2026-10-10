@@ -14,14 +14,6 @@
 
 repositoryID: 246dab19-d947-4d61-b97b-362580273a9b
 
-# Versions Artifact Hub skips. 6.2.0 to 6.3.0 were published with an icon URL that died
-# when the documentation left the app repository, so Artifact Hub reports an error for
-# each of them on every pass. A published chart is never repackaged, so they are hidden
-# from Artifact Hub instead; they stay installable from the chart repository. 6.3.1 and
-# later carry a working icon.
-ignore:
-  - name: ansibleforms
-    version: ^6\.(2\.[0-9]+|3\.0)$
 # owners:
 #   - name: <name>
 #     email: <email of the Artifact Hub account>

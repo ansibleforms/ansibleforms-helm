@@ -60,18 +60,23 @@ jobs:
             echo "::error::VALUES.md is out of date. Run the helm-docs command at the top of it and commit the result."
             exit 1; }
 
-      # Publishing is driven by the version in Chart.yaml, and the release
-      # workflow does nothing when the tag already exists. So a pull request that
-      # changes a template without bumping the version merges green, publishes
-      # nothing, and says nothing: the change sits on main and no one finds out
-      # until the next release drags it along.
-      - name: The chart version must move when the chart does
+      # The chart is versioned with AnsibleForms: version is always the appVersion it
+      # ships, and a release is the Follow app release pull request moving both. A chart
+      # change made between two app releases goes out with the next one, so it has to be
+      # listed under "## Unreleased" in the changelog, or nobody finds out it is waiting.
+      - name: A chart change is released with the next AnsibleForms version
         if: github.event_name == 'pull_request'
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          version="$(awk '/^version:/ {print $2}' Chart.yaml)"
+          app="$(awk '/^appVersion:/ {gsub(/"/, "", $2); print $2}' Chart.yaml)"
+          if [ "$version" != "$app" ]; then
+            echo "::error::Chart.yaml says version $version and appVersion $app. The chart is versioned with AnsibleForms: the two are always the same."
+            exit 1
+          fi
           changed="$(git diff --name-only "$BASE" HEAD -- Chart.yaml values.yaml templates files)"
           if [ -z "$changed" ]; then
             echo "Nothing under Chart.yaml, values.yaml, templates/ or files/ changed here."
@@ -79,21 +84,20 @@ jobs:
           fi
           echo "Chart files this pull request touches:"
           echo "$changed" | sed 's/^/  /'
-          # ./ makes the path relative to this directory. The fallback is the root,
-          # where Chart.yaml sat before the chart moved into charts/ansibleforms.
-          before="$( { git show "$BASE:./Chart.yaml" 2>/dev/null || git show "$BASE:Chart.yaml"; } | awk '/^version:/ {print $2}')"
-          after="$(awk '/^version:/ {print $2}' Chart.yaml)"
-          echo "base branch: $before"
-          echo "this branch: $after"
-          if [ "$before" = "$after" ]; then
-            echo "::error::The chart changed but Chart.yaml still says $after. Bump it, or the merge publishes nothing at all."
+          before="$(git show "$BASE:./Chart.yaml" | awk '/^version:/ {print $2}')"
+          if [ "$before" != "$version" ]; then
+            if gh release view "v${version}" >/dev/null 2>&1; then
+              echo "::error::v${version} is already released, so the release job would skip this one."
+              exit 1
+            fi
+            echo "The chart moves to AnsibleForms $version, which is unreleased."
+            exit 0
+          fi
+          if ! grep -q '^## Unreleased$' CHANGELOG.md || [ -z "$(git diff "$BASE" HEAD -- CHANGELOG.md)" ]; then
+            echo "::error::The chart changed between two AnsibleForms releases. Say what changed under '## Unreleased' at the top of CHANGELOG.md: it is released with the next AnsibleForms version."
             exit 1
           fi
-          if gh release view "v${after}" >/dev/null 2>&1; then
-            echo "::error::v${after} is already released. Pick a version that has not been published, or the release job will skip this one."
-            exit 1
-          fi
-          echo "Version moved from $before to $after and $after is unreleased."
+          echo "The change is listed under Unreleased and goes out with the next AnsibleForms version."
 
       # Rendering with nothing but the defaults has to FAIL: values.yaml ships
       # placeholder credentials, and writing <ENTER_PASSWORD_HERE> into a real
@@ -799,9 +803,9 @@ jobs:
           helm uninstall generated --namespace generated
 
       # The restricted Pod Security Standard is enforced by default on several
-      # managed distributions, and until 6.2.5 this chart could not be installed
-      # under it at all: the MySQL container had no security context and the
-      # server had an init container running as root to chown its volume.
+      # managed distributions. The chart once could not be installed under it at
+      # all: the MySQL container had no security context and the server had an
+      # init container running as root to chown its volume.
       # Labelling the namespace makes the API server the judge, so this passes
       # only if every pod the chart creates is genuinely acceptable.
       - name: Install where the restricted Pod Security Standard is enforced
@@ -1050,9 +1054,9 @@ jobs:
             --selector app.kubernetes.io/component=server || true
 
   # kind has no ingress controller, so until now the Ingress was rendered,
-  # validated against the schema and never asked for a single page. The port bug
-  # fixed in 6.2.2 lived exactly there: a manifest that validates perfectly and
-  # that no controller can route.
+  # validated against the schema and never asked for a single page. A port bug
+  # once lived exactly there: a manifest that validates perfectly and that no
+  # controller can route.
   ingress:
     name: Route through a real ingress controller
     runs-on: ubuntu-latest

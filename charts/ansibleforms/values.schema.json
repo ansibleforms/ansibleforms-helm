@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnsibleForms Helm chart values",
-  "description": "Types and shapes only. Anything nested is deliberately permissive, so a values file that already carries an extra key keeps working across an upgrade; the top level is closed, because a misspelling there is silent and can be dangerous. \"stroages\" simply does nothing, and the old mysql_deployment.enabled, renamed in 6.2.1, leaves you believing MySQL is disabled while the chart happily deploys it.",
+  "description": "Types and shapes only. Anything nested is deliberately permissive, so a values file that already carries an extra key keeps working across an upgrade; the top level is closed, because a misspelling there is silent and can be dangerous. \"stroages\" simply does nothing, and the old name mysql_deployment.enabled leaves you believing MySQL is disabled while the chart happily deploys it.",
   "type": "object",
   "additionalProperties": false,
   "properties": {

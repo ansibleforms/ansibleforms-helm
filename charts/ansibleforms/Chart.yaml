@@ -4,9 +4,9 @@ description: A Helm chart for AnsibleForms, a web front end that turns Ansible p
 type: application
 
 # version is the chart version and is what drives a release. appVersion is the
-# AnsibleForms version the default image points at. They used to be kept in
-# lockstep, which stopped being true as soon as the chart needed a fix of its
-# own, so they are tracked separately from here on.
+# AnsibleForms version the default image points at. The two are always the same:
+# the chart is released with AnsibleForms, and a chart change made between two
+# app releases goes out with the next one.
 version: 7.0.0
 appVersion: "7.0.0"
 

@@ -1,7 +1,8 @@
 name: Release chart
 
-# Publishing is driven by the version field in Chart.yaml. Bump it in a pull
-# request, merge to main, and this workflow tags the release, attaches the
+# Publishing is driven by the version field in Chart.yaml, which is the AnsibleForms
+# version the chart ships: the Follow app release pull request moves it. Once that is
+# merged to main, this workflow tags the release, attaches the
 # packaged chart, pushes it to GHCR as an OCI artifact and asks ansibleforms.com
 # to rebuild. The website serves the Helm repository at /helm-charts/, indexed
 # from the releases here; this repository has no Pages site of its own.
