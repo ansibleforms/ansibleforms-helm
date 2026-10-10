@@ -1,5 +1,74 @@
 # Changelog
 
+## 7.0.0
+
+AnsibleForms 7.
+
+### Changed
+
+- **The default image is AnsibleForms 7, `ghcr.io/ansibleforms/ansibleforms:7.0.0`**
+  (`appVersion` follows). 7 removes everything 6.x marked as deprecated; read
+  [Upgrading to 7](https://ansibleforms.com/upgrade-7) before you upgrade.
+- **`forms.configMap` mounts `config.yaml` instead of `forms.yaml`.** The defaults are now
+  `key: config.yaml` and `mountPath: /app/dist/persistent/config.yaml`. 7 reads
+  categories, roles and constants from `config.yaml` and the forms only from the forms
+  folder: ship them through `forms.extraFormsConfigMap`, one or more forms per key. A
+  `forms:` section in `config.yaml` is an error in 7.
+- **`ALLOW_ENV_EDIT: 0` is set by default.** The settings pages show every environment
+  variable read-only instead of saving changes to a `.env` file on the volume, which would
+  override these values on every restart. Set it to `1` under `applications.server.env` to
+  allow edits again.
+- **The chart's maintainer is the [ansibleforms](https://github.com/ansibleforms) organization**,
+  as shown on Artifact Hub and by `helm show chart`.
+- **A new install connects to the bundled MySQL as `ansibleforms`, not root.** With
+  `applications.mysql.user` left empty, the bundled MySQL creates that user with rights on
+  the AnsibleForms schema only, and root stays on localhost for the server's own
+  administration. An upgrade keeps the user its Secret already holds, so an existing
+  release goes on connecting as root, and so does a database of your own
+  (`mysql.enabled: false`) when no user is given. Set `applications.mysql.user: root` to
+  choose root on a new install.
+
+### Added
+
+- **An RTE runs next to the app, in the server pod**, from
+  `ghcr.io/ansibleforms/ansibleforms-rte:7.0.0`. AnsibleForms 7 runs no playbook itself; the
+  RTE does. It shares the app's volume and is reached on `127.0.0.1`, so nothing new is
+  published. Settings are under `containers.rte`, and `containers.rte.enabled: false` leaves it out.
+- **The RTE is registered as the default runner through a config seed**, a runner named `rte`
+  that is read-only in the interface. With a seed of your own (`CONFIG_SEED_PATH` set), the
+  chart leaves the seed to you: add the runner with `token: ${RTE_TOKEN}`.
+- **`applications.rte.token`**, the token the app and the RTE share. Left empty, the chart
+  generates one into the `<release>-keys` Secret and keeps it across upgrades, or reads it
+  from `containers.rte.existingTokenSecret`.
+- **`applications.rte.env`** for what the RTE reads rather than the app, such as `ANSIBLE_PATH`.
+- **`ACCESS_TOKEN_SECRET` is set**, generated once into the `<release>-keys` Secret and kept
+  across upgrades, so a pod restart no longer signs everybody out. Set
+  `applications.server.env.ACCESS_TOKEN_SECRET` to choose it.
+
+### Removed
+
+- **`files/schema.sql`, and the schema in the bundled MySQL's init script.** AnsibleForms 7
+  creates its schema on an empty database by itself, and migrates an existing one forward.
+  A database you run yourself needs nothing applied beforehand any more.
+
+### Upgrading from 6.x
+
+1. Be on AnsibleForms 6.5 first (chart 6.5.x), and take a backup (**Settings > Backups**).
+2. Follow [Upgrading to 7](https://ansibleforms.com/upgrade-7) while still on 6.5: rename
+   `forms.yaml` to `config.yaml`, move every form into a file of its own, replace `table`
+   fields, and drop the removed environment variables.
+3. If you mount the base configuration from a ConfigMap, rename its key to `config.yaml`
+   and point `forms.configMap.key` at it (or take the new defaults). Move the forms into
+   the ConfigMap behind `forms.extraFormsConfigMap`.
+4. Move `ANSIBLE_PATH` and `PROCESS_MAX_BUFFER`, if `applications.server.env` sets them, to
+   `applications.rte.env`: the RTE reads them now. If your playbooks need collections or
+   Python libraries the RTE image lacks, build your own from the app's `Dockerfile.rte` and
+   set `containers.rte.image`.
+5. Upgrade the chart. On its first start 7 migrates the database, and the `rte` runner
+   appears as the default under Connections > Runners.
+
+To stay on 6, pin the chart: `--version "~6"`.
+
 ## 6.5.5
 
 AnsibleForms 6.5.5.

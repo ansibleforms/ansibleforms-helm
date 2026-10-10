@@ -80,6 +80,32 @@
 {{- end -}}
 
 {{- /*
+  The database user AnsibleForms connects with. Given in values, it is that. Left
+  empty, an upgrade keeps the one the release's Secret already holds (an install
+  made by an earlier chart connects as root, and its data directory has no other user),
+  and a new install gets "ansibleforms", which the bundled MySQL creates with
+  rights on the AnsibleForms schema only (root with a database of your own, as
+  before : nothing creates the user there). Empty when it cannot be known : an
+  existingSecret rendered without a cluster to read it.
+*/}}
+{{- define "ansibleforms.dbUser" -}}
+{{- $appMysql := (.Values.applications | default dict).mysql | default dict -}}
+{{- $secrets := .Values.secrets | default dict -}}
+{{- if $appMysql.user -}}
+{{- $appMysql.user -}}
+{{- else -}}
+{{- $existing := (lookup "v1" "Secret" .Release.Namespace (include "ansibleforms.secretName" .)) | default dict -}}
+{{- $user := dig "data" "DB_USER" "" $existing -}}
+{{- if $user -}}
+{{- b64dec $user -}}
+{{- else if not $secrets.existingSecret -}}
+{{- /* the bundled MySQL creates "ansibleforms" ; a database of your own keeps the old default */ -}}
+{{- if dig "enabled" true (.Values.mysql | default dict) -}}ansibleforms{{- else -}}root{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- /*
   Labels shared by everything the chart creates, commonLabels included. They go
   on the metadata of every object and on the pod template, but never on a
   selector: a Deployment selector is immutable, so a label added there could
@@ -288,6 +314,13 @@ app.kubernetes.io/component: database
 {{- if .withMyCnf -}}
 {{- $_ := set $out "checksum/my-cnf" (include (print $root.Template.BasePath "/mysql-configmap-my-cnf.yaml") $root | sha256sum) -}}
 {{- end -}}
+{{- /* The keys and the chart's seed, as the values declare them: read once, at pod start */ -}}
+{{- if .withForms -}}
+{{- $session := toString (dig "server" "env" "ACCESS_TOKEN_SECRET" "" ($root.Values.applications | default dict)) -}}
+{{- $token := toString (dig "rte" "token" "" ($root.Values.applications | default dict)) -}}
+{{- $seed := ternary (include "ansibleforms.rte.seed" $root) "" (eq (include "ansibleforms.rte.seedEnabled" $root) "true") -}}
+{{- $_ := set $out "checksum/keys" (printf "%s|%s|%s" $session $token $seed | sha256sum) -}}
+{{- end -}}
 {{- if and .withForms (dig "external" false ($root.Values.rollOnChange | default dict)) -}}
 {{- $_ := set $out "checksum/external-config" (include "ansibleforms.externalConfigChecksum" $root) -}}
 {{- end -}}
@@ -297,8 +330,8 @@ app.kubernetes.io/component: database
 
 {{- /*
   The same idea for the objects the chart does not own: a Secret supplied
-  through secrets.existingSecret, and the ConfigMaps holding forms.yaml, the
-  extra form definitions and custom.js.
+  through secrets.existingSecret, and the ConfigMaps holding config.yaml, the
+  form files and custom.js.
 
   Reading them means a lookup against the cluster, and lookup returns nothing
   during `helm template`. Anything that renders first and applies afterwards,
@@ -363,4 +396,77 @@ app.kubernetes.io/component: database
 {{- end -}}
 {{- $parts | join "|" | sha256sum -}}
 {{- end -}}
+{{- end -}}
+
+{{- /*
+  The RTE. AnsibleForms 7 runs no playbook in the app: an RTE runs them, and the chart puts
+  one in the server pod. These helpers say whether it runs, where its token lives and
+  whether the chart registers it with the app through a config seed of its own.
+*/}}
+{{- define "ansibleforms.rte.enabled" -}}
+{{- if dig "rte" "enabled" true (.Values.containers | default dict) -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
+{{- define "ansibleforms.rte.port" -}}
+{{- dig "rte" "port" 8000 (.Values.containers | default dict) -}}
+{{- end -}}
+
+{{- /*
+  The token is kept apart from <release>-secrets on purpose. That Secret may be one the
+  user manages (secrets.existingSecret), and asking everybody who does to add a key before
+  the next upgrade would turn a new feature into a broken rollout. It lives in
+  <release>-keys, which is always the chart's, unless containers.rte.existingTokenSecret
+  names another.
+*/}}
+{{- define "ansibleforms.keysSecretName" -}}
+{{- printf "%s-keys" (include "ansibleforms.fullname" .) -}}
+{{- end -}}
+
+{{- define "ansibleforms.rte.tokenSecretName" -}}
+{{- $rte := dig "rte" (dict) (.Values.containers | default dict) -}}
+{{- $rte.existingTokenSecret | default (include "ansibleforms.keysSecretName" .) -}}
+{{- end -}}
+
+{{- define "ansibleforms.rte.tokenSecretKey" -}}
+{{- $rte := dig "rte" (dict) (.Values.containers | default dict) -}}
+{{- if $rte.existingTokenSecret -}}{{- $rte.existingTokenSecretKey | default "RTE_TOKEN" -}}{{- else -}}RTE_TOKEN{{- end -}}
+{{- end -}}
+
+{{- define "ansibleforms.rte.seedName" -}}
+{{- printf "%s-rte-seed" (include "ansibleforms.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- /*
+  The app reads one config seed, from CONFIG_SEED_PATH. When the user already points it at
+  a seed of their own, the chart's would replace it, so the chart steps aside and the
+  runner goes into their seed instead.
+*/}}
+{{- define "ansibleforms.rte.userSeed" -}}
+{{- $env := (((.Values.applications | default dict).server | default dict).env | default dict) -}}
+{{- $found := hasKey $env "CONFIG_SEED_PATH" -}}
+{{- range $e := (dig "server" "extraEnv" (list) (.Values.containers | default dict)) -}}
+{{- if eq (toString $e.name) "CONFIG_SEED_PATH" -}}{{- $found = true -}}{{- end -}}
+{{- end -}}
+{{- if $found -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
+{{- define "ansibleforms.rte.seedEnabled" -}}
+{{- if and (eq (include "ansibleforms.rte.enabled" .) "true")
+           (dig "rte" "seedRunner" true (.Values.containers | default dict))
+           (eq (include "ansibleforms.rte.userSeed" .) "false") -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
+{{- define "ansibleforms.rte.seed" -}}
+{{- $rte := dig "rte" (dict) (.Values.containers | default dict) -}}
+# Written by the AnsibleForms Helm chart: the RTE in the server pod, as the default runner.
+# The token is read from the environment when the seed is applied.
+version: 1
+runners:
+  items:
+    - name: {{ $rte.runnerName | default "rte" | quote }}
+      type: rte
+      description: "The RTE in the server pod, from the Helm chart"
+      uri: {{ printf "http://127.0.0.1:%v" (include "ansibleforms.rte.port" .) | quote }}
+      token: "${RTE_TOKEN}"
+      is_default: true
 {{- end -}}

@@ -54,7 +54,7 @@ that a few assertions that rendering alone would not make:
   is immutable
 - the MySQL probes exist and none of them carries a credential
 - the chart version moved, if anything under `Chart.yaml`, `values.yaml`,
-  `templates/` or `files/` of `charts/ansibleforms` did
+  `templates/` or `files/` (if it has one) of `charts/ansibleforms` did
 - the two security context combinations that cannot work are still refused, and
   the message still names the value to change
 
@@ -145,18 +145,11 @@ release workflow publishes the chart. A new major version opens an issue instead
 because moving the chart across a major takes real work. To catch up on a release
 by hand: Actions → *Follow app release* → Run workflow, with the version.
 
-## The 6.x maintenance line
+## AnsibleForms 6
 
-`main` is the chart for AnsibleForms 7. The chart for AnsibleForms 6 lives on
-`release/6.x`, at chart 6.5.5: fixes go there through a pull request against it, under
-the same rules as on `main`, and a new AnsibleForms 6 release moves it the same way.
-
-The release workflow publishes both lines. A 6.x release goes to the same chart
-repository and OCI registry, and is not marked as the latest GitHub release while a
-higher version exists. CI's upgrade test starts from the newest published chart of the
-branch's own major, so a 6.x pull request upgrades a 6.x release.
-
-Users stay on 6 by pinning the chart: `--version "~6"`.
+The 6.x charts, 6.0.0 to 6.5.5, are final: they stay published and installable, and no
+further 6.x chart is released. Their source is in the history of `main`, at the `v6.x.y`
+tags. Users stay on 6 by pinning the chart: `--version "~6"`.
 
 ## Repository settings this depends on
 
