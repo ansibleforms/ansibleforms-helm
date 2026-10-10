@@ -11,7 +11,7 @@
 #
 # Reference: https://artifacthub.io/docs/topics/repositories/helm-charts/
 
-# repositoryID: 00000000-0000-0000-0000-000000000000
+repositoryID: 246dab19-d947-4d61-b97b-362580273a9b
 # owners:
 #   - name: <name>
 #     email: <email of the Artifact Hub account>
