@@ -1,0 +1,27 @@
+{{- if dig "enabled" true (.Values.mysql | default dict) }}
+{{- /*
+  The schema lives in files/schema.sql rather than inline here, so the exact
+  same statements can be applied by hand to a database the chart does not
+  manage. MySQL only runs anything in /docker-entrypoint-initdb.d when the data
+  directory is empty, so this is a first-boot affair.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ansibleforms.mysql.fullname" . }}-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ansibleforms.mysql.labels" . | nindent 4 }}
+  {{- with (include "ansibleforms.annotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+data:
+  init.sql: |
+    -- The bundled server starts with a root account restricted to localhost,
+    -- and AnsibleForms connects over the network from another pod.
+    GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+    FLUSH PRIVILEGES;
+
+{{ .Files.Get "files/schema.sql" | indent 4 }}
+{{- end }}

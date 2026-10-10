@@ -1,0 +1,65 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "ansibleforms.ingressName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ansibleforms.server.labels" . | nindent 4 }}
+  {{- /*
+    Most specific wins: extraAnnotations over ingress.annotations over
+    commonAnnotations. Rendered through one merge rather than three ranges, so a
+    key set in two places appears once instead of producing a duplicate key.
+  */}}
+  {{- $ann := merge (dict)
+        (.Values.ingress.extraAnnotations | default dict)
+        (.Values.ingress.annotations | default dict)
+        (.Values.commonAnnotations | default dict) }}
+  {{- with $ann }}
+  annotations:
+    {{- range $key, $value := . }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.hostname }}
+        {{- range .Values.ingress.extraHosts }}
+        - {{ . }}
+        {{- end }}
+      # allow explicit override via .Values.ingress.secretName, otherwise use release name
+      secretName: {{ default (printf "%s-tls" (include "ansibleforms.fullname" .)) .Values.ingress.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.hostname }}
+      http:
+        paths:
+          - path: {{ .Values.ingress.path }}
+            pathType: {{ .Values.ingress.pathType }}
+            backend:
+              service:
+                name: {{ include "ansibleforms.server.fullname" . }}
+                {{- /*
+                  By name, not by number. The Service listens on 80 or 443
+                  depending on applications.server.env.HTTPS, and this used to
+                  say 80 either way: turning HTTPS on produced an Ingress
+                  pointing at a port the Service did not expose, and every
+                  request came back 503.
+                */}}
+                port:
+                  name: http
+          {{- range .Values.ingress.extraPaths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ .serviceName }}
+                port:
+                  number: {{ .servicePort }}
+          {{- end }}
+{{- end }}

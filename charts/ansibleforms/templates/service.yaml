@@ -1,0 +1,63 @@
+{{- $serverSvc := .Values.services.server | default dict }}
+{{- $serverLb := $serverSvc.loadbalancer | default dict }}
+{{- $mysqlSvc := .Values.services.mysql | default dict }}
+{{- $mysqlLb := $mysqlSvc.loadbalancer | default dict }}
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ include "ansibleforms.server.fullname" . }}
+  labels:
+    {{- include "ansibleforms.server.labels" . | nindent 4 }}
+  {{- /* The Service's own annotations win over commonAnnotations on a clash */}}
+  {{- with (merge (dict) ($serverSvc.annotations | default dict) (.Values.commonAnnotations | default dict)) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $serverSvc.type | default "ClusterIP" }}
+  {{- if and (eq ($serverSvc.type | default "ClusterIP") "LoadBalancer") $serverLb.ip }}
+  loadBalancerIP: {{ $serverLb.ip }}
+  {{- end }}
+  ports:
+    {{- /*
+      Named on purpose. The Ingress points at this port by name, so switching
+      HTTPS on moves the application, the Service and the Ingress together.
+      It used to hardcode 80 in the Ingress backend while the Service moved to
+      443, which every request answered with a 503.
+    */}}
+    - name: http
+      port: {{ include "ansibleforms.server.port" . }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "ansibleforms.server.selectorLabels" . | nindent 4 }}
+{{- /* The separator goes inside the guard, or disabling MySQL leaves a stray
+       document marker at the end of the file. */}}
+{{- if dig "enabled" true (.Values.mysql | default dict) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ include "ansibleforms.mysql.fullname" . }}
+  labels:
+    {{- include "ansibleforms.mysql.labels" . | nindent 4 }}
+  {{- /* The Service's own annotations win over commonAnnotations on a clash */}}
+  {{- with (merge (dict) ($mysqlSvc.annotations | default dict) (.Values.commonAnnotations | default dict)) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $mysqlSvc.type | default "ClusterIP" }}
+  {{- if and (eq ($mysqlSvc.type | default "ClusterIP") "LoadBalancer") $mysqlLb.ip }}
+  loadBalancerIP: {{ $mysqlLb.ip }}
+  {{- end }}
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: mysql
+      protocol: TCP
+  selector:
+    {{- include "ansibleforms.mysql.selectorLabels" . | nindent 4 }}
+{{- end }}

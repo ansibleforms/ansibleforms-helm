@@ -1,0 +1,50 @@
+apiVersion: v2
+name: ansibleforms
+description: A Helm chart for AnsibleForms, a web front end that turns Ansible playbooks into forms
+type: application
+
+# version is the chart version and is what drives a release. appVersion is the
+# AnsibleForms version the default image points at. The two are always the same:
+# the chart is released with AnsibleForms, and a chart change made between two
+# app releases goes out with the next one.
+version: 6.0.0
+appVersion: "6.0.0"
+
+home: https://ansibleforms.com
+icon: https://raw.githubusercontent.com/ansibleforms/website/main/source/assets/images/logo.png
+sources:
+  - https://github.com/ansibleforms/helm-charts
+  - https://github.com/ansibleforms/ansibleforms
+
+keywords:
+  - ansible
+  - ansibleforms
+  - automation
+  - forms
+  - self-service
+
+maintainers:
+  - name: ansibleforms
+    url: https://github.com/ansibleforms
+
+# Shown by Artifact Hub on the chart's page. artifacthub.io/images has to name the images
+# values.yaml deploys; CI fails when they disagree.
+annotations:
+  artifacthub.io/license: GPL-3.0
+  artifacthub.io/category: integration-delivery
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://ansibleforms.com
+    - name: Application source
+      url: https://github.com/ansibleforms/ansibleforms
+    - name: Chart source
+      url: https://github.com/ansibleforms/helm-charts
+    - name: Values reference
+      url: https://github.com/ansibleforms/helm-charts/blob/main/charts/ansibleforms/VALUES.md
+  artifacthub.io/images: |
+    - name: ansibleforms
+      image: ghcr.io/ansibleforms/ansibleforms:6.0.0
+    - name: mysql
+      image: mysql:8.4
+    - name: helm-test
+      image: curlimages/curl:8.10.1
