@@ -49,7 +49,7 @@ values.yaml itself and in the [README](README.md).
 | containers.server.bindPrivilegedPorts | bool | `true` | Let the non-root server bind ports 80 and 443 (sets net.ipv4.ip_unprivileged_port_start). |
 | containers.server.extraEnv | list | `[]` | Extra env entries for the server, written after the generated ones so they win. |
 | containers.server.extraEnvFrom | list | `[]` | ConfigMaps or Secrets injected as environment into the server. |
-| containers.server.image | string | `"ghcr.io/ansibleforms/ansibleforms:6.3.1"` | AnsibleForms image. |
+| containers.server.image | string | `"ghcr.io/ansibleforms/ansibleforms:6.4.0"` | AnsibleForms image. |
 | containers.server.imagePullSecrets | list | `[]` | Pull secrets for the AnsibleForms image only; overrides imagePullSecrets. |
 | containers.server.initContainers | list | `[]` | Init containers for the server pod. |
 | containers.server.liveness | object | `{"failureThreshold":3,"initialDelaySeconds":15,"path":"/","periodSeconds":15,"timeoutSeconds":15}` | Server liveness probe (HTTP). |
